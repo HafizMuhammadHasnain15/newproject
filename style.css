@@ -97,39 +97,23 @@ body {
     margin-bottom: 20px;
 }
 
-.header-left {
-    flex: 1;
-    padding-right: 10px;
-}
-
 .greeting {
-    font-size: 13px;
-    color: var(--primary-green);
-    font-style: italic;
-    display: block;
-    margin-bottom: 2px;
+    font-size: 14px;
+    color: var(--text-muted);
 }
 
 .user-name {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 700;
-    color: #fff;
+    margin-top: 2px;
 }
 
 .sub-text {
     font-size: 11px;
     color: var(--text-muted);
-    margin-top: 2px;
 }
 
-.header-actions-right {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.notification-bell,
-.profile-config-btn {
+.notification-bell {
     position: relative;
     width: 40px;
     height: 40px;
@@ -139,23 +123,14 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 15px;
+    font-size: 16px;
     cursor: pointer;
-    transition: background 0.2s;
-}
-
-.profile-config-btn {
-    color: var(--accent-blue);
-}
-
-.profile-config-btn:hover {
-    background: #0f2230;
 }
 
 .bell-dot {
     position: absolute;
-    top: 11px;
-    right: 12px;
+    top: 10px;
+    right: 11px;
     width: 6px;
     height: 6px;
     background: var(--primary-green);
@@ -456,6 +431,7 @@ body {
     margin-bottom: 20px;
 }
 
+/* Fixed overlapping issue by setting explicit layout padding and margin */
 .chart-title-area {
     font-size: 13px;
     font-weight: 600;
@@ -803,6 +779,7 @@ body {
     cursor: pointer;
 }
 
+/* --- GOAL CARD ACTION ICONS --- */
 .goal-header-right {
     display: flex;
     align-items: center;
@@ -829,6 +806,75 @@ body {
 
 .goal-action-icon.delete-icon:hover {
     color: var(--danger-red);
+}
+
+/* --- MODAL POPUP DIALOGS --- */
+.cfo-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 500;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.cfo-modal-box {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    width: 100%;
+    border-radius: 24px;
+    padding: 20px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+.cfo-modal-box h3 {
+    font-size: 16px;
+    margin-bottom: 14px;
+    font-weight: 600;
+}
+
+.modal-input-field {
+    width: 100%;
+    height: 44px;
+    background: #0d1923;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0 14px;
+    color: #fff;
+    font-size: 13px;
+    margin-bottom: 12px;
+    outline: none;
+}
+
+.modal-actions-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 5px;
+}
+
+.modal-btn {
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+}
+
+.btn-secondary {
+    background: #152632;
+    color: var(--text-muted);
+}
+
+.btn-primary {
+    background: var(--primary-green);
+    color: #030a10;
 }
 
 /* --- TRANSACTIONS LOGS LIST --- */
@@ -925,86 +971,4 @@ body {
     color: var(--danger-red);
     font-weight: 600;
     font-size: 13px;
-}
-
-/* --- MODAL POPUP DIALOGS --- */
-.cfo-modal-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    z-index: 500;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
-}
-
-.cfo-modal-box {
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    width: 100%;
-    border-radius: 24px;
-    padding: 20px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-}
-
-.cfo-modal-box h3 {
-    font-size: 16px;
-    margin-bottom: 14px;
-    font-weight: 600;
-}
-
-.modal-input-field {
-    width: 100%;
-    height: 44px;
-    background: #0d1923;
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 0 14px;
-    color: #fff;
-    font-size: 13px;
-    margin-bottom: 12px;
-    outline: none;
-}
-
-.modal-select-field {
-    width: 100%;
-    height: 44px;
-    background: #0d1923;
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 0 14px;
-    color: #fff;
-    font-size: 13px;
-    margin-bottom: 12px;
-    outline: none;
-}
-
-.modal-actions-row {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 5px;
-}
-
-.modal-btn {
-    padding: 8px 16px;
-    border-radius: 10px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    border: none;
-}
-
-.btn-secondary {
-    background: #152632;
-    color: var(--text-muted);
-}
-
-.btn-primary {
-    background: var(--primary-green);
-    color: #030a10;
 }

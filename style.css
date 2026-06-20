@@ -97,15 +97,48 @@ body {
     margin-bottom: 20px;
 }
 
+/* --- PROFILE INTERACTION ZONE TARGETS --- */
+.user-profile-trigger-zone {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    max-width: 80%;
+    transition: opacity 0.2s;
+}
+
+.user-profile-trigger-zone:hover {
+    opacity: 0.85;
+}
+
+.profile-avatar-circle {
+    width: 44px;
+    height: 44px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px;
+    color: var(--accent-blue);
+    flex-shrink: 0;
+}
+
 .greeting {
-    font-size: 14px;
+    font-size: 11px;
     color: var(--text-muted);
+    display: block;
+    line-height: 1.3;
+    font-weight: 500;
+    word-break: break-word;
 }
 
 .user-name {
     font-size: 20px;
     font-weight: 700;
     margin-top: 2px;
+    color: var(--text-main);
 }
 
 .sub-text {
@@ -125,6 +158,7 @@ body {
     align-items: center;
     font-size: 16px;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .bell-dot {
@@ -431,7 +465,6 @@ body {
     margin-bottom: 20px;
 }
 
-/* Fixed overlapping issue by setting explicit layout padding and margin */
 .chart-title-area {
     font-size: 13px;
     font-weight: 600;
@@ -779,7 +812,6 @@ body {
     cursor: pointer;
 }
 
-/* --- GOAL CARD ACTION ICONS --- */
 .goal-header-right {
     display: flex;
     align-items: center;

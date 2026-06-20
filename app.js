@@ -1,11 +1,15 @@
 // --- LOCAL STORAGE DATA ENGINE ---
 let financialData = JSON.parse(localStorage.getItem('myCFOData')) || {
     user: "Mughal",
+    userAge: 22,
+    userStatus: "Student",
+    bestLine: "Consistently learning, endlessly building.",
     healthScore: 82,
     balance: 25000,
     income: 50000, 
     expenses: 32000,
     savingsRate: 36,
+    customSavingsOverride: null, // Track manually entered savings rate
     chatHistory: [
         { sender: 'bot', text: '👋 Salam Mughal! Main aapka Personal CFO hoon. Kuch bhi kharcha ho yahan likhein (e.g., "500 petrol")', type: 'normal-msg' }
     ],
@@ -22,11 +26,15 @@ let financialData = JSON.parse(localStorage.getItem('myCFOData')) || {
 };
 
 function saveData() {
-    // Dynamic change of Health Score based on parameters
-    if (financialData.income > 0) {
-        financialData.savingsRate = Math.round(((financialData.income - financialData.expenses) / financialData.income) * 100);
+    // If user has not manually overwritten savings rate, calculate automatically
+    if (financialData.customSavingsOverride === null || financialData.customSavingsOverride === undefined) {
+        if (financialData.income > 0) {
+            financialData.savingsRate = Math.round(((financialData.income - financialData.expenses) / financialData.income) * 100);
+        } else {
+            financialData.savingsRate = 0;
+        }
     } else {
-        financialData.savingsRate = 0;
+        financialData.savingsRate = financialData.customSavingsOverride;
     }
     
     if(financialData.savingsRate > 40) financialData.healthScore = 88;
@@ -47,12 +55,21 @@ function switchScreen(screenName) {
 
     // 1. DASHBOARD SYSTEM VIEW
     if (screenName === 'dashboard') {
+        const displayName = financialData.user || "User";
+        const displayBestLine = financialData.bestLine || "Track your financial freedom seamlessly.";
+        const displayStatus = financialData.userStatus ? ` • ${financialData.userStatus}` : "";
+
         mainContent.innerHTML = `
             <div class="dashboard-header">
-                <div>
-                    <span class="greeting">👋 Good Morning,</span>
-                    <h2 class="user-name">${financialData.user}</h2>
-                    <p class="sub-text">Here is your financial overview</p>
+                <div class="user-profile-trigger-zone" id="profile-management-trigger">
+                    <div class="profile-avatar-circle">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <div>
+                        <span class="greeting">${displayBestLine}</span>
+                        <h2 class="user-name">${displayName}</h2>
+                        <p class="sub-text">Age: ${financialData.userAge || 'N/A'}${displayStatus}</p>
+                    </div>
                 </div>
                 <div class="notification-bell"><i class="fa-solid fa-bell"></i><span class="bell-dot"></span></div>
             </div>
@@ -79,12 +96,12 @@ function switchScreen(screenName) {
                     <div class="stat-meta"><p>Monthly Income ✏</p><h4>Rs. ${financialData.income.toLocaleString()}</h4></div>
                     <div class="stat-icon dark-blue-tint"><i class="fa-building-columns fa-solid"></i></div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-meta"><p>Monthly Expenses</p><h4>Rs. ${financialData.expenses.toLocaleString()}</h4></div>
+                <div class="stat-card" id="change-expenses-trigger">
+                    <div class="stat-meta"><p>Monthly Expenses ✏</p><h4>Rs. ${financialData.expenses.toLocaleString()}</h4></div>
                     <div class="stat-icon red-tint"><i class="fa-arrow-trend-down fa-solid"></i></div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-meta"><p>Savings Rate</p><h4>${financialData.savingsRate}%</h4></div>
+                <div class="stat-card" id="change-savings-trigger">
+                    <div class="stat-meta"><p>Savings Rate ✏</p><h4>${financialData.savingsRate}%</h4></div>
                     <div class="stat-icon purple-tint"><i class="fa-pie-chart fa-solid"></i></div>
                 </div>
             </div>
@@ -111,12 +128,15 @@ function switchScreen(screenName) {
                 </div>
             </div>
         `;
+        document.getElementById('profile-management-trigger').addEventListener('click', openUserProfileModal);
         document.getElementById('act-exp').addEventListener('click', () => switchScreen('chat'));
         document.getElementById('act-inc').addEventListener('click', openDirectIncomeModal);
         document.getElementById('act-goal-dash').addEventListener('click', openCreateGoalModal);
         document.getElementById('act-rep').addEventListener('click', () => switchScreen('analytics'));
         document.getElementById('change-income-trigger').addEventListener('click', openIncomeUpdateModal);
         document.getElementById('change-balance-trigger').addEventListener('click', openBalanceUpdateModal);
+        document.getElementById('change-expenses-trigger').addEventListener('click', openExpensesUpdateModal);
+        document.getElementById('change-savings-trigger').addEventListener('click', openSavingsUpdateModal);
     } 
     
     // 2. CFO BOT CHAT SCREEN
@@ -225,11 +245,8 @@ function switchScreen(screenName) {
         `;
     } 
     
-    // ==========================================
-    // 5. [FIXED REAL-TIME] ANALYTICS ENGINE
-    // ==========================================
+    // 5. ANALYTICS ENGINE
     else if (screenName === 'analytics') {
-        // Absolute dynamic category tracking array filter
         let foodSum = 0, fuelSum = 0, otherSum = 0;
         let dynamicIncome = 0, dynamicExpense = 0;
 
@@ -251,10 +268,12 @@ function switchScreen(screenName) {
             }
         });
 
-        // Strict Math Overrides - No visual layout data mismatch allowed!
         financialData.income = dynamicIncome > 0 ? dynamicIncome : financialData.income;
-        financialData.expenses = dynamicExpense; 
-        
+        // If user hasn't overwritten manually via button, use dynamic logs sum
+        if (!localStorage.getItem('expensesOverridden')) {
+            financialData.expenses = dynamicExpense; 
+        }
+
         let absoluteNetSavings = financialData.income - financialData.expenses;
         let calculatedTotalExpenses = foodSum + fuelSum + otherSum || 1; 
 
@@ -262,11 +281,9 @@ function switchScreen(screenName) {
         let fuelPercent = Math.round((fuelSum / calculatedTotalExpenses) * 100);
         let otherPercent = Math.round((otherSum / calculatedTotalExpenses) * 100);
 
-        // Calendar-Based Daily Burn math system logic
         let currentDay = new Date().getDate(); 
         let currentDailyBurnAvg = Math.round(financialData.expenses / currentDay);
 
-        // Chart Bar Scaling Architecture Math out of 140px maximum height limit
         let maxVal = Math.max(financialData.income, financialData.expenses) || 1;
         let incBarHeight = Math.round((financialData.income / maxVal) * 130) + 10;
         let expBarHeight = Math.round((financialData.expenses / maxVal) * 130) + 10;
@@ -333,7 +350,126 @@ function switchScreen(screenName) {
     }
 }
 
-// --- DYNAMIC MODAL BOX LOGICS ---
+// --- NEW MODAL FOR MANUAL EXPENSES OVERRIDE ---
+function openExpensesUpdateModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'cfo-modal-overlay';
+    overlay.id = 'modal-layer';
+    overlay.innerHTML = `
+        <div class="cfo-modal-box">
+            <h3>Update Monthly Expenses</h3>
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Apna custom monthly expense total adjust karein:</p>
+            <input type="number" id="new-expenses-val" class="modal-input-field" value="${financialData.expenses}" placeholder="Enter total expenses...">
+            <div class="modal-actions-row">
+                <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="modal-btn btn-primary" id="save-expenses-btn">Update Expenses</button>
+            </div>
+        </div>
+    `;
+    document.querySelector('.app-container').appendChild(overlay);
+    document.getElementById('save-expenses-btn').addEventListener('click', () => {
+        let amount = parseFloat(document.getElementById('new-expenses-val').value);
+        if(!isNaN(amount) && amount >= 0) {
+            financialData.expenses = amount;
+            localStorage.setItem('expensesOverridden', 'true'); // lock this dynamic field state
+            saveData();
+            closeModal();
+            switchScreen('dashboard');
+        }
+    });
+}
+
+// --- NEW MODAL FOR FIX SAVINGS RATE OVERRIDE ---
+function openSavingsUpdateModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'cfo-modal-overlay';
+    overlay.id = 'modal-layer';
+    overlay.innerHTML = `
+        <div class="cfo-modal-box">
+            <h3>Fix Savings Rate (%)</h3>
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Yahan enter kiye gaye percent savings rate card par fix rahenge:</p>
+            <input type="number" id="new-savings-val" class="modal-input-field" value="${financialData.savingsRate}" placeholder="Enter percentage (e.g. 25)...">
+            <div class="modal-actions-row">
+                <button class="modal-btn btn-secondary" id="reset-savings-btn" style="background:#1a0f0f; color:var(--danger-red); margin-right:auto;">Auto Calc</button>
+                <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="modal-btn btn-primary" id="save-savings-btn">Fix Value</button>
+            </div>
+        </div>
+    `;
+    document.querySelector('.app-container').appendChild(overlay);
+    
+    document.getElementById('reset-savings-btn').addEventListener('click', () => {
+        financialData.customSavingsOverride = null;
+        saveData();
+        closeModal();
+        switchScreen('dashboard');
+    });
+
+    document.getElementById('save-savings-btn').addEventListener('click', () => {
+        let pct = parseInt(document.getElementById('new-savings-val').value);
+        if(!isNaN(pct)) {
+            financialData.customSavingsOverride = pct;
+            financialData.savingsRate = pct;
+            saveData();
+            closeModal();
+            switchScreen('dashboard');
+        }
+    });
+}
+
+// --- USER PROFILE COMPONENT MODAL ---
+function openUserProfileModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'cfo-modal-overlay';
+    overlay.id = 'modal-layer';
+    overlay.innerHTML = `
+        <div class="cfo-modal-box">
+            <h3>⚙ Update Profile Settings</h3>
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Apna complete display profile manage karein:</p>
+            
+            <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Full Name:</label>
+            <input type="text" id="profile-name-input" class="modal-input-field" value="${financialData.user || ''}" placeholder="Enter your name...">
+            
+            <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Age:</label>
+            <input type="number" id="profile-age-input" class="modal-input-field" value="${financialData.userAge || ''}" placeholder="Enter your age...">
+            
+            <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Best Line / Custom Motto:</label>
+            <input type="text" id="profile-bestline-input" class="modal-input-field" value="${financialData.bestLine || ''}" placeholder="Enter your custom greeting text...">
+            
+            <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Professional Status:</label>
+            <select id="profile-status-input" class="modal-input-field" style="background:#0d1923; color:#fff;">
+                <option value="Student" ${financialData.userStatus === 'Student' ? 'selected' : ''}>Student</option>
+                <option value="Employee" ${financialData.userStatus === 'Employee' ? 'selected' : ''}>Employee</option>
+            </select>
+
+            <div class="modal-actions-row" style="margin-top:15px;">
+                <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="modal-btn btn-primary" id="save-profile-btn">Save Configuration</button>
+            </div>
+        </div>
+    `;
+    document.querySelector('.app-container').appendChild(overlay);
+    document.getElementById('save-profile-btn').addEventListener('click', () => {
+        const uName = document.getElementById('profile-name-input').value.trim();
+        const uAge = parseInt(document.getElementById('profile-age-input').value);
+        const uLine = document.getElementById('profile-bestline-input').value.trim();
+        const uStatus = document.getElementById('profile-status-input').value;
+
+        if(!uName || !uLine) {
+            alert("Name aur Best Line complete fill karein!");
+            return;
+        }
+
+        financialData.user = uName;
+        financialData.userAge = !isNaN(uAge) ? uAge : "";
+        financialData.bestLine = uLine;
+        financialData.userStatus = uStatus;
+
+        saveData();
+        closeModal();
+        switchScreen('dashboard');
+    });
+}
 
 function openBalanceUpdateModal() {
     const overlay = document.createElement('div');
@@ -381,7 +517,6 @@ function openIncomeUpdateModal() {
     document.getElementById('save-income-btn').addEventListener('click', () => {
         let amount = parseFloat(document.getElementById('new-income-val').value);
         if(!isNaN(amount) && amount >= 0) {
-            // Update baseline transaction list
             financialData.income = amount;
             let salTx = financialData.transactions.find(t => t.category === 'Salary');
             if(salTx) salTx.amount = amount;

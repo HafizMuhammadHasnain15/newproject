@@ -1,5 +1,5 @@
 /**
- * Personal CFO - Core Financial Application Engine (Architect Version 4.1 - Production Ready)
+ * Personal CFO - Core Financial Application Engine (Architect Version 4.2 - Production Ready)
  * Integrated Features: Expense Accumulation, Budget Warnings, Transaction CRUD,
  * Goal Savings Integration, Dynamic Cash-to-Percentage Savings Converter,
  * Strict Profile Icon Click Trigger, Zero-State Data Reset on Profile Save,
@@ -86,6 +86,9 @@ let financialData = (() => {
         return DEFAULT_STATE;
     }
 })();
+
+// Temporary tracking flag for dropdown state management
+let isNotificationDropdownOpen = false;
 
 /**
  * Derives and calculates all balance, income, expense, and savings data loops
@@ -210,11 +213,55 @@ function switchScreen(screenName) {
             ? `<span style="color:var(--danger-red); font-weight:bold;">⚠️ Budget Exceeded!</span>` 
             : `Monthly Expenses ✏`;
 
-        let bellMessageBadge = '';
-        if (financialData.activeNotification) {
-            bellMessageBadge = `
-                <div style="position: absolute; right: 40px; top: 0; background: var(--accent-blue); color: #fff; font-size: 10px; padding: 4px 10px; border-radius: 20px; white-space: nowrap; box-shadow: 0 2px 10px rgba(0,0,0,0.3); max-width: 180px; overflow: hidden; text-overflow: ellipsis;" id="bell-alert-text">
-                    ${sanitizeInput(financialData.activeNotification)}
+        // --- CORE LIVE NOTIFICATION GENERATOR ENGINE ---
+        let dynamicNotificationsList = [];
+
+        // 1. Alert if current balance is 20% or less of the Initial Seed Wallet Base
+        let seedWalletTarget = Number(financialData.initialSeedWallet) || 1;
+        let currentBalancePercent = (financialData.balance / seedWalletTarget) * 100;
+        if (currentBalancePercent <= 20) {
+            dynamicNotificationsList.push(`⚠️ Alert: Your wallet current balance has dropped to ${currentBalancePercent.toFixed(0)}%! Please restrict further outflows.`);
+        }
+
+        // 2. Expense Limit Overwrite / Warning Exceeded Checks
+        if (isBudgetExceeded) {
+            dynamicNotificationsList.push(`🚨 Warning: Monthly expense tracking limit has been breached! Expenses crossed Rs. ${Number(financialData.expenseWarningLimit).toLocaleString()}`);
+        }
+
+        // 3. Goal Savings Target Achievement Real-time Trackers
+        if (Array.isArray(financialData.goals)) {
+            financialData.goals.forEach(g => {
+                if (Number(g.saved) >= Number(g.target) && !g.isPurchased) {
+                    dynamicNotificationsList.push(`🎯 Congratulations! Your saving target for "${sanitizeInput(g.title)}" has been achieved.`);
+                }
+            });
+        }
+
+        // Build the active dropdown items UI overlay element block conditionally
+        let notificationDropdownOverlayHTML = '';
+        if (isNotificationDropdownOpen) {
+            let optionsRows = '';
+            if (dynamicNotificationsList.length === 0) {
+                optionsRows = `<li style="padding: 10px; font-size: 11px; color: var(--text-muted); text-align: center;">No new alerts at this time.</li>`;
+            } else {
+                dynamicNotificationsList.forEach((note, idx) => {
+                    optionsRows += `
+                        <li style="padding: 10px 12px; font-size: 11px; color: #fff; border-bottom: ${idx !== dynamicNotificationsList.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none'}; line-height: 1.4; text-align: left; background: rgba(255,255,255,0.02);">
+                            ${note}
+                        </li>
+                    `;
+                });
+            }
+
+            notificationDropdownOverlayHTML = `
+                <div style="position: absolute; right: 0; top: 50px; background: #0b1a26; border: 1px solid var(--border-color); width: 280px; max-height: 250px; overflow-y: auto; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); z-index: 9999; padding: 4px;" id="cfo-notification-dropdown-box">
+                    <div style="padding: 8px 12px; font-size: 11px; font-weight: 700; color: var(--accent-blue); border-bottom: 1px dashed rgba(255,255,255,0.1); display: flex; justify-content: space-between;">
+                        <span>🔔 SYSTEM NOTIFICATIONS</span>
+                        <span style="font-size: 9px; color: var(--text-muted); font-weight: normal;">Live Updates</span>
+                    </div>
+                    <ul style="list-style: none; margin: 0; padding: 0;">
+                        ${optionsRows}
+                    </ul>
                 </div>
             `;
         }
@@ -245,11 +292,14 @@ function switchScreen(screenName) {
                         <p class="sub-text">Age: ${sanitizeInput(String(financialData.userAge || 'N/A'))}${displayStatus}</p>
                     </div>
                 </div>
-                <div class="notification-bell" id="dashboard-bell-icon" style="cursor: pointer; position: relative;">
+                
+                <!-- TOP RIGHT NOTIFICATION BELL INTERACTIVE ACTION BUTTON COMPONENT -->
+                <button id="dashboard-bell-icon" class="notification-bell" style="cursor: pointer; position: relative; outline: none; background: var(--card-bg); border: 1px solid var(--border-color); display: flex; justify-content: center; align-items: center;" aria-label="Toggle Alert Window">
                     <i class="fa-solid fa-bell"></i>
-                    <span class="bell-dot" style="${financialData.activeNotification ? 'background: var(--accent-blue);' : ''}"></span>
-                </div>
-                ${bellMessageBadge}
+                    ${dynamicNotificationsList.length > 0 ? `<span class="bell-dot" style="background: var(--danger-red); width: 8px; height: 8px; top: 8px; right: 8px;"></span>` : ''}
+                </button>
+                
+                ${notificationDropdownOverlayHTML}
             </div>
 
             <div class="health-card" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; min-height: auto;">
@@ -270,9 +320,7 @@ function switchScreen(screenName) {
                     <div style="font-size: 11px;"><span style="color:var(--text-muted);">Monthly Expenses:</span><br><b style="color:var(--danger-red);">Rs. ${financialData.expenses.toLocaleString()}</b></div>
                     <div style="font-size: 11px;"><span style="color:var(--text-muted);">Goal Allocation:</span><br><b style="color:var(--amber-gold);">Rs. ${totalGoalFundsAllocated.toLocaleString()}</b></div>
                     
-                    <div style="font-size: 11px; grid-column: span 2; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 4px; margin-top: 2px;">
-                        <span style="color:var(--text-muted); font-style: italic;"><i class="fa-solid fa-clock-rotate-left"></i> Previous Amount Baseline:</span> <b style="color:var(--accent-blue);">Rs. ${Number(financialData.previousSeedWallet).toLocaleString()}</b>
-                    </div>
+                    <!-- REMOVED THE PREVIOUS AMOUNT BASELINE ROW HISTORY LOGGER ELEMENT AS SPECIFIED -->
                     
                     <div style="font-size: 11px; grid-column: span 2; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px;">
                         <span style="color:var(--text-muted);">Savings Pool:</span> <b style="color:var(--primary-green);">Rs. ${financialData.savingsAmount.toLocaleString()} (${financialData.savingsRate}%)</b>
@@ -340,17 +388,16 @@ function switchScreen(screenName) {
         safelyBindClick('change-expenses-trigger', openExpensesUpdateModal);
         safelyBindClick('change-savings-trigger', openSavingsUpdateModal);
         
+        // Handle dropdown display toggling mechanism safely
         safelyBindClick('dashboard-bell-icon', () => {
-            if (financialData.activeNotification) {
-                financialData.activeNotification = null;
-                saveData();
-                switchScreen('dashboard');
-            }
+            isNotificationDropdownOpen = !isNotificationDropdownOpen;
+            switchScreen('dashboard');
         });
     } 
     
     // 2. CFO BOT CHAT SCREEN VIEW STATE
     else if (screenName === 'chat') {
+        isNotificationDropdownOpen = false; // Close active dropdowns when leaving dashboard layer
         mainContent.innerHTML = `
             <div class="chat-screen-layout">
                 <div class="chat-header">
@@ -382,6 +429,7 @@ function switchScreen(screenName) {
     
     // 3. GOALS SCREEN LOGIC SYSTEM VIEW
     else if (screenName === 'goals') {
+        isNotificationDropdownOpen = false;
         let goalsHTML = `
             <div class="goals-header">
                 <h3>My Goals</h3>
@@ -453,6 +501,7 @@ function switchScreen(screenName) {
     
     // 4. TRANSACTION MODULE FEED VIEW
     else if (screenName === 'transactions') {
+        isNotificationDropdownOpen = false;
         let txRows = '';
         if (Array.isArray(financialData.transactions)) {
             financialData.transactions.slice().reverse().forEach(tx => {
@@ -496,6 +545,7 @@ function switchScreen(screenName) {
     
     // 5. ANALYTICS ENGINE COMPUTATION CONTEXT
     else if (screenName === 'analytics') {
+        isNotificationDropdownOpen = false;
         let foodSum = 0, fuelSum = 0, otherSum = 0;
         let analyticIncome = 0, analyticExpense = 0;
 

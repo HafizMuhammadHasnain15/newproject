@@ -8,8 +8,9 @@ let financialData = JSON.parse(localStorage.getItem('myCFOData')) || {
     balance: 25000,
     income: 50000, 
     expenses: 32000,
+    savingsAmount: 18000,        
     savingsRate: 36,
-    customSavingsOverride: null, // Track manually entered savings rate
+    customSavingsOverride: null, 
     chatHistory: [
         { sender: 'bot', text: '👋 Salam Mughal! Main aapka Personal CFO hoon. Kuch bhi kharcha ho yahan likhein (e.g., "500 petrol")', type: 'normal-msg' }
     ],
@@ -26,15 +27,16 @@ let financialData = JSON.parse(localStorage.getItem('myCFOData')) || {
 };
 
 function saveData() {
-    // If user has not manually overwritten savings rate, calculate automatically
     if (financialData.customSavingsOverride === null || financialData.customSavingsOverride === undefined) {
-        if (financialData.income > 0) {
-            financialData.savingsRate = Math.round(((financialData.income - financialData.expenses) / financialData.income) * 100);
-        } else {
-            financialData.savingsRate = 0;
-        }
+        financialData.savingsAmount = financialData.income - financialData.expenses;
     } else {
-        financialData.savingsRate = financialData.customSavingsOverride;
+        financialData.savingsAmount = financialData.customSavingsOverride;
+    }
+
+    if (financialData.income > 0) {
+        financialData.savingsRate = Math.round((financialData.savingsAmount / financialData.income) * 100);
+    } else {
+        financialData.savingsRate = 0;
     }
     
     if(financialData.savingsRate > 40) financialData.healthScore = 88;
@@ -53,11 +55,18 @@ function switchScreen(screenName) {
     const currentNav = document.getElementById(`nav-${screenName}`);
     if (currentNav) currentNav.classList.add('active');
 
-    // 1. DASHBOARD SYSTEM VIEW
     if (screenName === 'dashboard') {
         const displayName = financialData.user || "User";
         const displayBestLine = financialData.bestLine || "Track your financial freedom seamlessly.";
         const displayStatus = financialData.userStatus ? ` • ${financialData.userStatus}` : "";
+
+        // Dynamic side-by-side calculation for Savings Card
+        let autoCalculatedRate = 0;
+        if (financialData.income > 0) {
+            autoCalculatedRate = Math.round(((financialData.income - financialData.expenses) / financialData.income) * 100);
+        }
+        let enteredValueDisplay = financialData.customSavingsOverride !== null ? `${financialData.customSavingsOverride}%` : "Not Set";
+        let rateColor = financialData.savingsRate >= 0 ? 'var(--primary-green)' : 'var(--danger-red)';
 
         mainContent.innerHTML = `
             <div class="dashboard-header">
@@ -100,8 +109,16 @@ function switchScreen(screenName) {
                     <div class="stat-meta"><p>Monthly Expenses ✏</p><h4>Rs. ${financialData.expenses.toLocaleString()}</h4></div>
                     <div class="stat-icon red-tint"><i class="fa-arrow-trend-down fa-solid"></i></div>
                 </div>
+                
                 <div class="stat-card" id="change-savings-trigger">
-                    <div class="stat-meta"><p>Savings Rate ✏</p><h4>${financialData.savingsRate}%</h4></div>
+                    <div class="stat-meta">
+                        <p>Monthly Savings ✏</p>
+                        <h4 style="font-size: 15px; margin-bottom: 2px; color: ${rateColor};">Live: ${financialData.savingsRate}%</h4>
+                        <div style="font-size: 10px; color: var(--text-muted); display: flex; flex-direction: column; gap: 1px;">
+                            <span>🤖 Auto Calc: <b style="color: var(--primary-green);">${autoCalculatedRate}%</b></span>
+                            <span>👤 Entered: <b style="color: var(--accent-blue);">${enteredValueDisplay}</b></span>
+                        </div>
+                    </div>
                     <div class="stat-icon purple-tint"><i class="fa-pie-chart fa-solid"></i></div>
                 </div>
             </div>
@@ -128,6 +145,7 @@ function switchScreen(screenName) {
                 </div>
             </div>
         `;
+        // Reactivate Profile Trigger Event
         document.getElementById('profile-management-trigger').addEventListener('click', openUserProfileModal);
         document.getElementById('act-exp').addEventListener('click', () => switchScreen('chat'));
         document.getElementById('act-inc').addEventListener('click', openDirectIncomeModal);
@@ -139,7 +157,6 @@ function switchScreen(screenName) {
         document.getElementById('change-savings-trigger').addEventListener('click', openSavingsUpdateModal);
     } 
     
-    // 2. CFO BOT CHAT SCREEN
     else if (screenName === 'chat') {
         mainContent.innerHTML = `
             <div class="chat-screen-layout">
@@ -164,7 +181,6 @@ function switchScreen(screenName) {
         renderChatMessages();
     } 
     
-    // 3. GOALS SCREEN LOGIC VIEW
     else if (screenName === 'goals') {
         let goalsHTML = `
             <div class="goals-header">
@@ -206,7 +222,6 @@ function switchScreen(screenName) {
         document.getElementById('create-new-goal-btn').addEventListener('click', openCreateGoalModal);
     }
     
-    // 4. TRANSACTION VIEW LOG
     else if (screenName === 'transactions') {
         let txRows = '';
         financialData.transactions.slice().reverse().forEach(tx => {
@@ -245,7 +260,6 @@ function switchScreen(screenName) {
         `;
     } 
     
-    // 5. ANALYTICS ENGINE
     else if (screenName === 'analytics') {
         let foodSum = 0, fuelSum = 0, otherSum = 0;
         let dynamicIncome = 0, dynamicExpense = 0;
@@ -269,7 +283,6 @@ function switchScreen(screenName) {
         });
 
         financialData.income = dynamicIncome > 0 ? dynamicIncome : financialData.income;
-        // If user hasn't overwritten manually via button, use dynamic logs sum
         if (!localStorage.getItem('expensesOverridden')) {
             financialData.expenses = dynamicExpense; 
         }
@@ -350,7 +363,6 @@ function switchScreen(screenName) {
     }
 }
 
-// --- NEW MODAL FOR MANUAL EXPENSES OVERRIDE ---
 function openExpensesUpdateModal() {
     const overlay = document.createElement('div');
     overlay.className = 'cfo-modal-overlay';
@@ -371,7 +383,7 @@ function openExpensesUpdateModal() {
         let amount = parseFloat(document.getElementById('new-expenses-val').value);
         if(!isNaN(amount) && amount >= 0) {
             financialData.expenses = amount;
-            localStorage.setItem('expensesOverridden', 'true'); // lock this dynamic field state
+            localStorage.setItem('expensesOverridden', 'true'); 
             saveData();
             closeModal();
             switchScreen('dashboard');
@@ -379,20 +391,19 @@ function openExpensesUpdateModal() {
     });
 }
 
-// --- NEW MODAL FOR FIX SAVINGS RATE OVERRIDE ---
 function openSavingsUpdateModal() {
     const overlay = document.createElement('div');
     overlay.className = 'cfo-modal-overlay';
     overlay.id = 'modal-layer';
     overlay.innerHTML = `
         <div class="cfo-modal-box">
-            <h3>Fix Savings Rate (%)</h3>
-            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Yahan enter kiye gaye percent savings rate card par fix rahenge:</p>
-            <input type="number" id="new-savings-val" class="modal-input-field" value="${financialData.savingsRate}" placeholder="Enter percentage (e.g. 25)...">
+            <h3>Update Monthly Savings (Rs.)</h3>
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Apni custom savings amount enter karein. System percentage rate automatic calculate karega:</p>
+            <input type="number" id="new-savings-val" class="modal-input-field" value="${financialData.savingsAmount}" placeholder="Enter Rs. amount (e.g. 5000)...">
             <div class="modal-actions-row">
                 <button class="modal-btn btn-secondary" id="reset-savings-btn" style="background:#1a0f0f; color:var(--danger-red); margin-right:auto;">Auto Calc</button>
                 <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
-                <button class="modal-btn btn-primary" id="save-savings-btn">Fix Value</button>
+                <button class="modal-btn btn-primary" id="save-savings-btn">Save Value</button>
             </div>
         </div>
     `;
@@ -406,10 +417,10 @@ function openSavingsUpdateModal() {
     });
 
     document.getElementById('save-savings-btn').addEventListener('click', () => {
-        let pct = parseInt(document.getElementById('new-savings-val').value);
-        if(!isNaN(pct)) {
-            financialData.customSavingsOverride = pct;
-            financialData.savingsRate = pct;
+        let amount = parseFloat(document.getElementById('new-savings-val').value);
+        if(!isNaN(amount)) {
+            financialData.customSavingsOverride = amount;
+            financialData.savingsAmount = amount;
             saveData();
             closeModal();
             switchScreen('dashboard');
@@ -417,7 +428,6 @@ function openSavingsUpdateModal() {
     });
 }
 
-// --- USER PROFILE COMPONENT MODAL ---
 function openUserProfileModal() {
     const overlay = document.createElement('div');
     overlay.className = 'cfo-modal-overlay';
@@ -721,7 +731,6 @@ function showGoalConfirmationToast(textMessage) {
     setTimeout(() => { toast.remove(); }, 2500);
 }
 
-// --- CHAT CONTROL ENGINE SYSTEM ---
 function renderChatMessages() {
     const chatBox = document.getElementById('chat-box-area');
     if(!chatBox) return;
@@ -797,7 +806,6 @@ function processChatMessage() {
     }, 400);
 }
 
-// --- INITIAL ENGINE INITIALIZATION ---
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('nav-dashboard').addEventListener('click', () => switchScreen('dashboard'));
     document.getElementById('nav-transactions').addEventListener('click', () => switchScreen('transactions'));

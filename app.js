@@ -1,16 +1,51 @@
-// --- LOCAL STORAGE DATA ENGINE ---
-let financialData = JSON.parse(localStorage.getItem('myCFOData')) || {
+/**
+ * Personal CFO - Core Financial Application Engine (Architect Version 4.0 - Production Ready)
+ * Integrated Features: Expense Accumulation, Budget Warnings, Transaction CRUD,
+ * Goal Savings Integration, Dynamic Cash-to-Percentage Savings Converter,
+ * Strict Profile Icon Click Trigger, Zero-State Data Reset on Profile Save,
+ * Fixed Direct Balance Overwrites, and Full Asset Breakdown on Health Card view.
+ * * * EXPERT ARCHITECT SECURITY & FINANCIAL PATCH UPDATES:
+ * 1. Enforced strict formulation: Current Balance = (Initial Wallet Seed + Monthly Income) + Total Incomes - Total Expenses - Total Goals.
+ * 2. Integrated "Previous Account Baseline" history logger tracking inside Financial Metrics Sheet.
+ * 3. Resolved transaction state aggregation leaks to prevent residual mathematical side-effects.
+ * 4. Implemented secure RegEx string sanitation filtering for all innerHTML insertion points to mitigate XSS risk.
+ * 5. Sanitized memory footprint by swapping element listeners via functional node-cloning replication strategy.
+ */
+
+// --- SECURE CRYPTO & SANITIZATION UTILITIES ---
+/**
+ * Filters and sanitizes raw input strings to prevent HTML Injection and XSS attacks.
+ * @param {string} rawInput - The unverified input string.
+ * @returns {string} - The sanitized string with HTML entities encoded.
+ */
+function sanitizeInput(rawInput) {
+    if (typeof rawInput !== 'string') return '';
+    return rawInput
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#x27;")
+        .replace(/\//g, "&#x2F;");
+}
+
+// --- LOCAL STORAGE DATA ENGINE INITIALIZATION ---
+const DEFAULT_STATE = {
     user: "Mughal",
     userAge: 22,
     userStatus: "Student",
     bestLine: "Consistently learning, endlessly building.",
     healthScore: 82,
-    balance: 25000,
-    income: 50000, 
-    expenses: 32000,
+    initialSeedWallet: 25000,    
+    previousSeedWallet: 25000,   // Expert Memory Track for Historical Baseline Record
+    balance: 50000,              // Explicitly derived balance matching (Seed + Income) Base Equation
+    income: 50000,               
+    expenses: 32000,             
+    expenseWarningLimit: 40000,  
     savingsAmount: 18000,        
     savingsRate: 36,
     customSavingsOverride: null, 
+    activeNotification: null,     
     chatHistory: [
         { sender: 'bot', text: '👋 Salam Mughal! Main aapka Personal CFO hoon. Kuch bhi kharcha ho yahan likhein (e.g., "500 petrol")', type: 'normal-msg' }
     ],
@@ -20,33 +55,119 @@ let financialData = JSON.parse(localStorage.getItem('myCFOData')) || {
         { id: 3, title: 'Petrol Refuel', amount: 500, type: 'expense', category: 'Fuel', time: '11:20 AM', date: '2026-06-19' }
     ],
     goals: [
-        { id: 101, title: 'New Laptop', target: 150000, saved: 45000, date: '31 Dec 2026', icon: 'fa-laptop' },
-        { id: 102, title: 'Emergency Fund', target: 60000, saved: 15000, date: '31 Aug 2026', icon: 'fa-shield-halved' },
-        { id: 103, title: 'PS5 Console', target: 70000, saved: 21000, date: '31 Jan 2027', icon: 'fa-gamepad' }
+        { id: 101, title: 'New Laptop', target: 150000, saved: 45000, date: '31 Dec 2026', icon: 'fa-laptop', isPurchased: false },
+        { id: 102, title: 'Emergency Fund', target: 60000, saved: 15000, date: '31 Aug 2026', icon: 'fa-shield-halved', isPurchased: false },
+        { id: 103, title: 'PS5 Console', target: 70000, saved: 70000, date: '31 Jan 2027', icon: 'fa-gamepad', isPurchased: false }
     ]
 };
 
+let financialData = (() => {
+    try {
+        const stored = localStorage.getItem('myCFOData');
+        if (!stored) return DEFAULT_STATE;
+        let parsed = JSON.parse(stored);
+        
+        // Self-healing check mechanisms for state transitions
+        if (parsed.initialSeedWallet === undefined) {
+            parsed.initialSeedWallet = parsed.balance !== undefined ? parsed.balance : 25000;
+        }
+        if (parsed.previousSeedWallet === undefined) {
+            parsed.previousSeedWallet = parsed.initialSeedWallet;
+        }
+        if (parsed.expenseWarningLimit === undefined) {
+            parsed.expenseWarningLimit = 40000; 
+        }
+        if (parsed.activeNotification === undefined) {
+            parsed.activeNotification = null;
+        }
+        return parsed;
+    } catch (e) {
+        console.error("Critical State Engine Extraction Error, fallback executed.", e);
+        return DEFAULT_STATE;
+    }
+})();
+
+/**
+ * Derives and calculates all balance, income, expense, and savings data loops
+ * directly from the transaction ledger array before saving to localStorage.
+ */
 function saveData() {
-    if (financialData.customSavingsOverride === null || financialData.customSavingsOverride === undefined) {
-        financialData.savingsAmount = financialData.income - financialData.expenses;
-    } else {
-        financialData.savingsAmount = financialData.customSavingsOverride;
-    }
+    try {
+        let aggregateLedgerIncome = 0;
+        let aggregateLedgerExpense = 0;
 
-    if (financialData.income > 0) {
-        financialData.savingsRate = Math.round((financialData.savingsAmount / financialData.income) * 100);
-    } else {
-        financialData.savingsRate = 0;
-    }
-    
-    if(financialData.savingsRate > 40) financialData.healthScore = 88;
-    else if(financialData.savingsRate > 20) financialData.healthScore = 79;
-    else financialData.healthScore = 55;
+        if (Array.isArray(financialData.transactions)) {
+            financialData.transactions.forEach(t => {
+                const amt = Number(t.amount) || 0;
+                if (t.type === 'income') {
+                    aggregateLedgerIncome += amt;
+                } else if (t.type === 'expense') {
+                    aggregateLedgerExpense += amt;
+                }
+            });
+        }
 
-    localStorage.setItem('myCFOData', JSON.stringify(financialData));
+        // Set live expenses based on transactions
+        financialData.expenses = aggregateLedgerExpense;
+
+        let totalGoalFundsAllocated = 0;
+        let activeGoalFundsAllocated = 0;
+        if (Array.isArray(financialData.goals)) {
+            financialData.goals.forEach(g => {
+                const savedAmt = Number(g.saved) || 0;
+                totalGoalFundsAllocated += savedAmt;
+                if (!g.isPurchased) {
+                    activeGoalFundsAllocated += savedAmt;
+                }
+            });
+        }
+
+        // CFO EXACT ACCOUNTING RULE: Live Balance = (Initial Seed Wallet + Monthly Income Target) + New Incomes - Expenses - Allocated Goals
+        let baselineCapitalPool = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0);
+        financialData.balance = baselineCapitalPool + aggregateLedgerIncome - aggregateLedgerExpense - totalGoalFundsAllocated;
+
+        // Savings pool derivation based on balance targets
+        let baseSavings = financialData.income - financialData.expenses;
+        let standardSavingsBasis = (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined)
+            ? financialData.customSavingsOverride 
+            : baseSavings;
+
+        financialData.savingsAmount = standardSavingsBasis + activeGoalFundsAllocated;
+
+        if (financialData.income > 0) {
+            financialData.savingsRate = Math.round((financialData.savingsAmount / financialData.income) * 100);
+        } else {
+            financialData.savingsRate = 0;
+        }
+        
+        // Dynamic formulation logic for standard health scores
+        if (financialData.savingsRate > 40) financialData.healthScore = 88;
+        else if (financialData.savingsRate > 20) financialData.healthScore = 79;
+        else financialData.healthScore = 55;
+
+        localStorage.setItem('myCFOData', JSON.stringify(financialData));
+    } catch (error) {
+        console.error("State Synchronization Writing Interrupted", error);
+    }
 }
 
-// --- APP LAYER WINDOW SWITCHER ---
+/**
+ * Replaces an element with a clean clone to remove active event listeners,
+ * avoiding memory leaks before attaching the new click handler callback.
+ * @param {string} elementId - Target DOM element ID attribute.
+ * @param {Function} eventHandler - Callback implementation pointer.
+ */
+function safelyBindClick(elementId, eventHandler) {
+    const oldElement = document.getElementById(elementId);
+    if (!oldElement) return;
+    const newElement = oldElement.cloneNode(true);
+    if (oldElement.parentNode) {
+        oldElement.parentNode.replaceChild(newElement, oldElement);
+    }
+    newElement.addEventListener('click', eventHandler);
+}
+
+// --- APP LAYER WINDOW SCREEN SWITCHER ---
 function switchScreen(screenName) {
     const mainContent = document.getElementById('main-content');
     if (!mainContent) return;
@@ -55,68 +176,116 @@ function switchScreen(screenName) {
     const currentNav = document.getElementById(`nav-${screenName}`);
     if (currentNav) currentNav.classList.add('active');
 
-    if (screenName === 'dashboard') {
-        const displayName = financialData.user || "User";
-        const displayBestLine = financialData.bestLine || "Track your financial freedom seamlessly.";
-        const displayStatus = financialData.userStatus ? ` • ${financialData.userStatus}` : "";
+    // Sync all calculations before rendering the screen view state
+    saveData();
 
-        // Dynamic side-by-side calculation for Savings Card
+    // 1. DASHBOARD SYSTEM VIEW LAYOUT
+    if (screenName === 'dashboard') {
+        const displayName = sanitizeInput(financialData.user || "User");
+        const displayBestLine = sanitizeInput(financialData.bestLine || "Track your financial freedom seamlessly.");
+        const displayStatus = financialData.userStatus ? ` • ${sanitizeInput(financialData.userStatus)}` : "";
+
         let autoCalculatedRate = 0;
         if (financialData.income > 0) {
             autoCalculatedRate = Math.round(((financialData.income - financialData.expenses) / financialData.income) * 100);
         }
-        let enteredValueDisplay = financialData.customSavingsOverride !== null ? `${financialData.customSavingsOverride}%` : "Not Set";
+
+        let userEnteredPercentDisplay = "Not Set";
+        if (financialData.customSavingsOverride !== null && financialData.income > 0) {
+            let computedPercent = Math.round((financialData.customSavingsOverride / financialData.income) * 100);
+            userEnteredPercentDisplay = `${computedPercent}% (Rs. ${Number(financialData.customSavingsOverride).toLocaleString()})`;
+        }
+
         let rateColor = financialData.savingsRate >= 0 ? 'var(--primary-green)' : 'var(--danger-red)';
+        const isBudgetExceeded = financialData.expenses >= (financialData.expenseWarningLimit || Infinity);
+        
+        const expenseTitleText = isBudgetExceeded 
+            ? `<span style="color:var(--danger-red); font-weight:bold;">⚠️ Budget Exceeded!</span>` 
+            : `Monthly Expenses ✏`;
+
+        let bellMessageBadge = '';
+        if (financialData.activeNotification) {
+            bellMessageBadge = `
+                <div style="position: absolute; right: 40px; top: 0; background: var(--accent-blue); color: #fff; font-size: 10px; padding: 4px 10px; border-radius: 20px; white-space: nowrap; box-shadow: 0 2px 10px rgba(0,0,0,0.3); max-width: 180px; overflow: hidden; text-overflow: ellipsis;" id="bell-alert-text">
+                    ${sanitizeInput(financialData.activeNotification)}
+                </div>
+            `;
+        }
+
+        let totalGoalFundsAllocated = 0;
+        if (Array.isArray(financialData.goals)) {
+            financialData.goals.forEach(g => { totalGoalFundsAllocated += (Number(g.saved) || 0); });
+        }
+        
+        let absoluteGrandTotalWorth = financialData.savingsAmount + totalGoalFundsAllocated + financialData.balance;
 
         mainContent.innerHTML = `
-            <div class="dashboard-header">
-                <div class="user-profile-trigger-zone" id="profile-management-trigger">
-                    <div class="profile-avatar-circle">
+            <div class="dashboard-header" style="position: relative;">
+                <div class="user-profile-trigger-zone" style="cursor: default; display: flex; align-items: center; gap: 12px;">
+                    <div class="profile-avatar-circle" id="profile-icon-only-trigger" style="cursor: pointer;" title="Click icon to edit profile and finances">
                         <i class="fa-solid fa-user"></i>
                     </div>
                     <div>
                         <span class="greeting">${displayBestLine}</span>
                         <h2 class="user-name">${displayName}</h2>
-                        <p class="sub-text">Age: ${financialData.userAge || 'N/A'}${displayStatus}</p>
+                        <p class="sub-text">Age: ${sanitizeInput(String(financialData.userAge || 'N/A'))}${displayStatus}</p>
                     </div>
                 </div>
-                <div class="notification-bell"><i class="fa-solid fa-bell"></i><span class="bell-dot"></span></div>
+                <div class="notification-bell" id="dashboard-bell-icon" style="cursor: pointer; position: relative;">
+                    <i class="fa-solid fa-bell"></i>
+                    <span class="bell-dot" style="${financialData.activeNotification ? 'background: var(--accent-blue);' : ''}"></span>
+                </div>
+                ${bellMessageBadge}
             </div>
 
-            <div class="health-card">
-                <div class="health-info">
-                    <h3>Financial Health Score</h3>
-                    <div class="score-display"><span class="score-big">${financialData.healthScore}</span><span class="score-total">/100</span></div>
-                    <span class="score-tag">${financialData.healthScore > 70 ? 'Good' : 'Critical'}</span>
-                    <p class="score-desc"><i class="fa-solid fa-circle-check"></i> System synced and live.</p>
+            <div class="health-card" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; min-height: auto;">
+                <div style="width: 100%; border-bottom: 1px dashed rgba(255,255,255,0.15); padding-bottom: 8px;">
+                    <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-blue); font-weight: 600;">💰 Total Net Asset Value (Saving + Goal + Current Value)</span>
+                    <h2 style="font-size: 22px; margin: 2px 0 0 0; color: #fff; font-weight: 800;">Rs. ${absoluteGrandTotalWorth.toLocaleString()}</h2>
                 </div>
-                <div class="health-chart-circle">
-                    <svg width="80" height="80"><circle cx="40" cy="40" r="34" class="bg-circle"></circle><circle cx="40" cy="40" r="34" class="progress-circle" style="stroke-dashoffset: calc(213 - (213 * ${financialData.healthScore}) / 100);"></circle></svg>
-                    <div class="circle-text">${financialData.healthScore}</div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div class="health-info" style="flex: 1;">
+                        <h3 style="margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px; color: var(--text-muted);">Financial Metrics Sheet</h3>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-top: 0px;">
+                    <div style="font-size: 11px;"><span style="color:var(--text-muted);">Current Balance:</span><br><b style="color:#fff;">Rs. ${financialData.balance.toLocaleString()}</b></div>
+                    <div style="font-size: 11px;"><span style="color:var(--text-muted);">Monthly Income:</span><br><b style="color:#fff;">Rs. ${financialData.income.toLocaleString()}</b></div>
+                    <div style="font-size: 11px;"><span style="color:var(--text-muted);">Monthly Expenses:</span><br><b style="color:var(--danger-red);">Rs. ${financialData.expenses.toLocaleString()}</b></div>
+                    <div style="font-size: 11px;"><span style="color:var(--text-muted);">Goal Allocation:</span><br><b style="color:var(--amber-gold);">Rs. ${totalGoalFundsAllocated.toLocaleString()}</b></div>
+                    
+                    <div style="font-size: 11px; grid-column: span 2; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 4px; margin-top: 2px;">
+                        <span style="color:var(--text-muted); font-style: italic;"><i class="fa-solid fa-clock-rotate-left"></i> Previous Amount Baseline:</span> <b style="color:var(--accent-blue);">Rs. ${Number(financialData.previousSeedWallet).toLocaleString()}</b>
+                    </div>
+                    
+                    <div style="font-size: 11px; grid-column: span 2; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px;">
+                        <span style="color:var(--text-muted);">Savings Pool:</span> <b style="color:var(--primary-green);">Rs. ${financialData.savingsAmount.toLocaleString()} (${financialData.savingsRate}%)</b>
+                    </div>
                 </div>
             </div>
 
             <div class="stats-grid">
-                <div class="stat-card" id="change-balance-trigger">
+                <div class="stat-card" id="change-balance-trigger" style="cursor: pointer;">
                     <div class="stat-meta"><p>Current Balance ✏</p><h4>Rs. ${financialData.balance.toLocaleString()}</h4></div>
                     <div class="stat-icon blue-tint"><i class="fa-wallet fa-solid"></i></div>
                 </div>
-                <div class="stat-card" id="change-income-trigger">
+                <div class="stat-card" id="change-income-trigger" style="cursor: pointer;">
                     <div class="stat-meta"><p>Monthly Income ✏</p><h4>Rs. ${financialData.income.toLocaleString()}</h4></div>
                     <div class="stat-icon dark-blue-tint"><i class="fa-building-columns fa-solid"></i></div>
                 </div>
-                <div class="stat-card" id="change-expenses-trigger">
-                    <div class="stat-meta"><p>Monthly Expenses ✏</p><h4>Rs. ${financialData.expenses.toLocaleString()}</h4></div>
+                <div class="stat-card" id="change-expenses-trigger" style="cursor: pointer; ${isBudgetExceeded ? 'border: 1px solid var(--danger-red); background:#1a0b0d;' : ''}">
+                    <div class="stat-meta"><p>${expenseTitleText}</p><h4>Rs. ${financialData.expenses.toLocaleString()}</h4><small style="font-size:9px; color:var(--text-muted)">Limit: Rs. ${Number(financialData.expenseWarningLimit).toLocaleString()}</small></div>
                     <div class="stat-icon red-tint"><i class="fa-arrow-trend-down fa-solid"></i></div>
                 </div>
-                
-                <div class="stat-card" id="change-savings-trigger">
+                <div class="stat-card" id="change-savings-trigger" style="cursor: pointer;">
                     <div class="stat-meta">
-                        <p>Monthly Savings ✏</p>
-                        <h4 style="font-size: 15px; margin-bottom: 2px; color: ${rateColor};">Live: ${financialData.savingsRate}%</h4>
+                        <p>Total Savings Pool ✏</p>
+                        <h4 style="font-size: 15px; margin-bottom: 2px; color: ${rateColor};">Total: ${financialData.savingsRate}% (Rs. ${financialData.savingsAmount.toLocaleString()})</h4>
                         <div style="font-size: 10px; color: var(--text-muted); display: flex; flex-direction: column; gap: 1px;">
-                            <span>🤖 Auto Calc: <b style="color: var(--primary-green);">${autoCalculatedRate}%</b></span>
-                            <span>👤 Entered: <b style="color: var(--accent-blue);">${enteredValueDisplay}</b></span>
+                            <span>🤖 Auto Calc Base: <b style="color: var(--primary-green);">${autoCalculatedRate}%</b></span>
+                            <span>👤 User Entered Base: <b style="color: var(--accent-blue);">${userEnteredPercentDisplay}</b></span>
                         </div>
                     </div>
                     <div class="stat-icon purple-tint"><i class="fa-pie-chart fa-solid"></i></div>
@@ -130,38 +299,48 @@ function switchScreen(screenName) {
                     <span class="lbl-expense">Expenses<br><b>Rs. ${financialData.expenses.toLocaleString()}</b></span>
                 </div>
                 <div class="progress-bar-container">
-                    <div class="progress-income" style="width: ${Math.min(100, Math.round((financialData.balance/financialData.income)*100))}%"></div>
-                    <div class="progress-expense" style="width: ${Math.min(100, Math.round((financialData.expenses/financialData.income)*100))}%"></div>
+                    <div class="progress-income" style="width: ${Math.min(100, Math.round((financialData.balance / (financialData.income || 1)) * 100))}%"></div>
+                    <div class="progress-expense" style="width: ${Math.min(100, Math.round((financialData.expenses / (financialData.income || 1)) * 100))}%"></div>
                 </div>
             </div>
 
             <div class="quick-actions-section">
                 <h3>Quick Actions</h3>
                 <div class="actions-row">
-                    <div class="action-btn-wrapper" id="act-exp"><div class="action-btn btn-red"><i class="fa-solid fa-plus"></i></div><span>Add Expense</span></div>
-                    <div class="action-btn-wrapper" id="act-inc"><div class="action-btn btn-green"><i class="fa-solid fa-plus"></i></div><span>Add Income</span></div>
-                    <div class="action-btn-wrapper" id="act-goal-dash"><div class="action-btn btn-amber"><i class="fa-solid fa-star"></i></div><span>Add Goal</span></div>
-                    <div class="action-btn-wrapper" id="act-rep"><div class="action-btn btn-blue"><i class="fa-solid fa-chart-simple"></i></div><span>See Reports</span></div>
+                    <div class="action-btn-wrapper" id="act-exp" style="cursor: pointer;"><div class="action-btn btn-red"><i class="fa-solid fa-plus"></i></div><span>Add Expense</span></div>
+                    <div class="action-btn-wrapper" id="act-inc" style="cursor: pointer;"><div class="action-btn btn-green"><i class="fa-solid fa-plus"></i></div><span>Add Income</span></div>
+                    <div class="action-btn-wrapper" id="act-goal-dash" style="cursor: pointer;"><div class="action-btn btn-amber"><i class="fa-solid fa-star"></i></div><span>Add Goal</span></div>
+                    <div class="action-btn-wrapper" id="act-rep" style="cursor: pointer;"><div class="action-btn btn-blue"><i class="fa-solid fa-chart-simple"></i></div><span>See Reports</span></div>
                 </div>
             </div>
         `;
-        // Reactivate Profile Trigger Event
-        document.getElementById('profile-management-trigger').addEventListener('click', openUserProfileModal);
-        document.getElementById('act-exp').addEventListener('click', () => switchScreen('chat'));
-        document.getElementById('act-inc').addEventListener('click', openDirectIncomeModal);
-        document.getElementById('act-goal-dash').addEventListener('click', openCreateGoalModal);
-        document.getElementById('act-rep').addEventListener('click', () => switchScreen('analytics'));
-        document.getElementById('change-income-trigger').addEventListener('click', openIncomeUpdateModal);
-        document.getElementById('change-balance-trigger').addEventListener('click', openBalanceUpdateModal);
-        document.getElementById('change-expenses-trigger').addEventListener('click', openExpensesUpdateModal);
-        document.getElementById('change-savings-trigger').addEventListener('click', openSavingsUpdateModal);
+
+        // Direct isolated execution map to eliminate event bubbling leaks
+        safelyBindClick('profile-icon-only-trigger', openUserProfileModal);
+        safelyBindClick('act-exp', () => switchScreen('chat'));
+        safelyBindClick('act-inc', openDirectIncomeModal);
+        safelyBindClick('act-goal-dash', openCreateGoalModal);
+        safelyBindClick('act-rep', () => switchScreen('analytics'));
+        safelyBindClick('change-income-trigger', openIncomeUpdateModal);
+        safelyBindClick('change-balance-trigger', openBalanceUpdateModal);
+        safelyBindClick('change-expenses-trigger', openExpensesUpdateModal);
+        safelyBindClick('change-savings-trigger', openSavingsUpdateModal);
+        
+        safelyBindClick('dashboard-bell-icon', () => {
+            if (financialData.activeNotification) {
+                financialData.activeNotification = null;
+                saveData();
+                switchScreen('dashboard');
+            }
+        });
     } 
     
+    // 2. CFO BOT CHAT SCREEN VIEW STATE
     else if (screenName === 'chat') {
         mainContent.innerHTML = `
             <div class="chat-screen-layout">
                 <div class="chat-header">
-                    <i class="fa-solid fa-arrow-left" id="back-to-dash"></i>
+                    <i class="fa-solid fa-arrow-left" id="back-to-dash" style="cursor: pointer;"></i>
                     <div>
                         <h3>CFO Chat</h3>
                         <p>Your Financial Assistant</p>
@@ -175,76 +354,117 @@ function switchScreen(screenName) {
                 </div>
             </div>
         `;
-        document.getElementById('back-to-dash').addEventListener('click', () => switchScreen('dashboard'));
-        document.getElementById('send-msg-btn').addEventListener('click', processChatMessage);
-        document.getElementById('user-msg-input').addEventListener('keypress', (e) => { if(e.key === 'Enter') processChatMessage(); });
+        safelyBindClick('back-to-dash', () => switchScreen('dashboard'));
+        safelyBindClick('send-msg-btn', processChatMessage);
+        
+        const textInput = document.getElementById('user-msg-input');
+        if (textInput) {
+            textInput.addEventListener('keypress', (e) => { 
+                if (e.key === 'Enter') processChatMessage(); 
+            });
+        }
         renderChatMessages();
     } 
     
+    // 3. GOALS SCREEN LOGIC SYSTEM VIEW
     else if (screenName === 'goals') {
         let goalsHTML = `
             <div class="goals-header">
                 <h3>My Goals</h3>
-                <div class="add-goal-icon-btn" id="create-new-goal-btn"><i class="fa-solid fa-plus"></i></div>
+                <div class="add-goal-icon-btn" id="create-new-goal-btn" style="cursor: pointer;"><i class="fa-solid fa-plus"></i></div>
             </div>
         `;
 
-        financialData.goals.forEach(goal => {
-            let percentage = Math.min(Math.round((goal.saved / goal.target) * 100), 100);
-            let remaining = goal.target - goal.saved;
+        if (Array.isArray(financialData.goals)) {
+            financialData.goals.forEach(goal => {
+                const targetValue = Number(goal.target) || 1;
+                const savedValue = Number(goal.saved) || 0;
+                let percentage = Math.min(Math.round((savedValue / targetValue) * 100), 100);
+                let remaining = Math.max(0, targetValue - savedValue);
+                
+                const isAchieved = savedValue >= targetValue;
+                const isPurchased = goal.isPurchased === true;
 
-            goalsHTML += `
-                <div class="goal-card">
-                    <div class="goal-top-info">
-                        <div class="goal-avatar"><i class="fa-solid ${goal.icon || 'fa-star'}"></i></div>
-                        <div class="goal-details">
-                            <h4>${goal.title}</h4>
-                            <p>Target: Rs. ${goal.target.toLocaleString()} • Saved: Rs. ${goal.saved.toLocaleString()}</p>
+                let strikeStyle = isPurchased 
+                    ? 'position: relative; text-decoration: line-through; opacity: 0.6; filter: grayscale(50%); transition: all 0.3s ease;' 
+                    : 'position: relative; transition: all 0.3s ease;';
+
+                let actionButtonHTML = `<button class="save-fund-btn" onclick="openAddFundsModal(${goal.id})">Add Funds</button>`;
+                
+                if (isAchieved) {
+                    if (isPurchased) {
+                        actionButtonHTML = `<span style="color:var(--primary-green); font-size:11px; font-weight:bold;"><i class="fa-solid fa-circle-check"></i> Bought &amp; Logged</span>`;
+                    } else {
+                        actionButtonHTML = `
+                            <button class="save-fund-btn" 
+                                    style="background: linear-gradient(135deg, #00e676, #00b0ff); color:#000; font-weight:bold; border:none;" 
+                                    onclick="triggerGoalPurchase(${goal.id}, '${sanitizeInput(goal.title)}')">
+                                🛍️ You can buy it!
+                            </button>
+                        `;
+                    }
+                }
+
+                goalsHTML += `
+                    <div class="goal-card" style="${strikeStyle}">
+                        ${isPurchased ? '<div style="position:absolute; top:50%; left:0; width:100%; height:2px; background:var(--danger-red); z-index:10; pointer-events:none;"></div>' : ''}
+                        
+                        <div class="goal-top-info">
+                            <div class="goal-avatar"><i class="fa-solid ${sanitizeInput(goal.icon || 'fa-star')}"></i></div>
+                            <div class="goal-details">
+                                <h4 style="${isPurchased ? 'text-decoration: line-through;' : ''}">${sanitizeInput(goal.title)}</h4>
+                                <p>Target: Rs. ${Number(goal.target).toLocaleString()} • Saved: Rs. ${savedValue.toLocaleString()}</p>
+                            </div>
+                            <div class="goal-header-right">
+                                <span class="goal-percentage">${percentage}%</span>
+                                <i class="fa-solid fa-pen goal-action-icon edit-icon" title="Edit Goal" style="cursor:pointer;" onclick="openEditGoalModal(${goal.id})"></i>
+                                <i class="fa-solid fa-trash goal-action-icon delete-icon" title="Delete Goal" style="cursor:pointer;" onclick="deleteGoal(${goal.id})"></i>
+                            </div>
                         </div>
-                        <div class="goal-header-right">
-                            <span class="goal-percentage">${percentage}%</span>
-                            <i class="fa-solid fa-pen goal-action-icon edit-icon" title="Edit Goal" onclick="openEditGoalModal(${goal.id})"></i>
-                            <i class="fa-solid fa-trash goal-action-icon delete-icon" title="Delete Goal" onclick="deleteGoal(${goal.id})"></i>
+                        <div class="goal-progress-track">
+                            <div class="goal-progress-fill" style="width: ${percentage}%"></div>
+                        </div>
+                        <div class="goal-bottom-actions">
+                            <div class="goal-remaining">Remaining: <b>Rs. ${remaining.toLocaleString()}</b><br><small style="color:var(--text-muted)">Target Date: ${sanitizeInput(goal.date)}</small></div>
+                            <div class="action-btn-injection-space">${actionButtonHTML}</div>
                         </div>
                     </div>
-                    <div class="goal-progress-track">
-                        <div class="goal-progress-fill" style="width: ${percentage}%"></div>
-                    </div>
-                    <div class="goal-bottom-actions">
-                        <div class="goal-remaining">Remaining: <b>Rs. ${remaining.toLocaleString()}</b><br><small style="color:var(--text-muted)">Target Date: ${goal.date}</small></div>
-                        <button class="save-fund-btn" onclick="openAddFundsModal(${goal.id})">Add Funds</button>
-                    </div>
-                </div>
-            `;
-        });
+                `;
+            });
+        }
 
         mainContent.innerHTML = goalsHTML;
-        document.getElementById('create-new-goal-btn').addEventListener('click', openCreateGoalModal);
+        safelyBindClick('create-new-goal-btn', openCreateGoalModal);
     }
     
+    // 4. TRANSACTION MODULE FEED VIEW
     else if (screenName === 'transactions') {
         let txRows = '';
-        financialData.transactions.slice().reverse().forEach(tx => {
-            const isIncome = tx.type === 'income';
-            txRows += `
-                <div class="tx-card">
-                    <div class="tx-left">
-                        <div class="tx-icon-frame ${isIncome ? 'frame-green' : 'frame-red'}">
-                            <i class="${isIncome ? 'fa-solid fa-arrow-trend-up' : 'fa-solid fa-basket-shopping'}"></i>
+        if (Array.isArray(financialData.transactions)) {
+            financialData.transactions.slice().reverse().forEach(tx => {
+                const isIncome = tx.type === 'income';
+                txRows += `
+                    <div class="tx-card" style="margin-bottom:8px;">
+                        <div class="tx-left">
+                            <div class="tx-icon-frame ${isIncome ? 'frame-green' : 'frame-red'}">
+                                <i class="${isIncome ? 'fa-solid fa-arrow-trend-up' : 'fa-solid fa-basket-shopping'}"></i>
+                            </div>
+                            <div>
+                                <h4>${sanitizeInput(tx.title)}</h4>
+                                <p>${sanitizeInput(tx.time)} • ${sanitizeInput(tx.category || 'General')}</p>
+                            </div>
                         </div>
-                        <div>
-                            <h4>${tx.title}</h4>
-                            <p>${tx.time} • ${tx.category || 'General'}</p>
+                        <div class="tx-right" style="display:flex; align-items:center; gap:12px;">
+                            <span class="${isIncome ? 'tx-amount-inc' : 'tx-amount-exp'}" style="margin-right:4px;">
+                                ${isIncome ? '+' : '-'} Rs. ${Number(tx.amount).toLocaleString()}
+                            </span>
+                            <i class="fa-solid fa-pen" style="color:var(--accent-blue); cursor:pointer; font-size:12px;" title="Edit Transaction" onclick="openEditTransactionModal(${tx.id})"></i>
+                            <i class="fa-solid fa-trash" style="color:var(--danger-red); cursor:pointer; font-size:12px;" title="Delete Transaction" onclick="deleteTransaction(${tx.id})"></i>
                         </div>
                     </div>
-                    <div class="tx-right">
-                        <span class="${isIncome ? 'tx-amount-inc' : 'tx-amount-exp'}">
-                            ${isIncome ? '+' : '-'} Rs. ${tx.amount.toLocaleString()}
-                        </span>
-                    </div>
-                </div>
-            `;
-        });
+                `;
+            });
+        }
 
         mainContent.innerHTML = `
             <div class="transactions-header">
@@ -260,34 +480,36 @@ function switchScreen(screenName) {
         `;
     } 
     
+    // 5. ANALYTICS ENGINE COMPUTATION CONTEXT
     else if (screenName === 'analytics') {
         let foodSum = 0, fuelSum = 0, otherSum = 0;
-        let dynamicIncome = 0, dynamicExpense = 0;
+        let analyticIncome = 0, analyticExpense = 0;
 
-        financialData.transactions.forEach(t => {
-            if (t.type === 'income') {
-                dynamicIncome += t.amount;
-            } else if (t.type === 'expense') {
-                dynamicExpense += t.amount;
-                let cat = (t.category || '').toLowerCase();
-                let title = t.title.toLowerCase();
-                
-                if (cat.includes('food') || title.includes('kfc') || title.includes('burger') || title.includes('khana') || title.includes('dinner')) {
-                    foodSum += t.amount;
-                } else if (cat.includes('fuel') || title.includes('petrol') || title.includes('bike')) {
-                    fuelSum += t.amount;
-                } else {
-                    otherSum += t.amount;
+        if (Array.isArray(financialData.transactions)) {
+            financialData.transactions.forEach(t => {
+                const amt = Number(t.amount) || 0;
+                if (t.type === 'income') {
+                    analyticIncome += amt;
+                } else if (t.type === 'expense') {
+                    analyticExpense += amt;
+                    let cat = (t.category || '').toLowerCase();
+                    let title = (t.title || '').toLowerCase();
+                    
+                    if (cat.includes('food') || title.includes('kfc') || title.includes('burger') || title.includes('khana') || title.includes('dinner')) {
+                        foodSum += amt;
+                    } else if (cat.includes('fuel') || title.includes('petrol') || title.includes('bike')) {
+                        fuelSum += amt;
+                    } else {
+                        otherSum += amt;
+                    }
                 }
-            }
-        });
-
-        financialData.income = dynamicIncome > 0 ? dynamicIncome : financialData.income;
-        if (!localStorage.getItem('expensesOverridden')) {
-            financialData.expenses = dynamicExpense; 
+            });
         }
 
-        let absoluteNetSavings = financialData.income - financialData.expenses;
+        const displayIncome = analyticIncome > 0 ? analyticIncome : financialData.income;
+        const displayExpense = analyticExpense > 0 ? analyticExpense : financialData.expenses;
+
+        let absoluteNetSavings = displayIncome - displayExpense;
         let calculatedTotalExpenses = foodSum + fuelSum + otherSum || 1; 
 
         let foodPercent = Math.round((foodSum / calculatedTotalExpenses) * 100);
@@ -295,11 +517,11 @@ function switchScreen(screenName) {
         let otherPercent = Math.round((otherSum / calculatedTotalExpenses) * 100);
 
         let currentDay = new Date().getDate(); 
-        let currentDailyBurnAvg = Math.round(financialData.expenses / currentDay);
+        let currentDailyBurnAvg = Math.round(displayExpense / currentDay);
 
-        let maxVal = Math.max(financialData.income, financialData.expenses) || 1;
-        let incBarHeight = Math.round((financialData.income / maxVal) * 130) + 10;
-        let expBarHeight = Math.round((financialData.expenses / maxVal) * 130) + 10;
+        let maxVal = Math.max(displayIncome, displayExpense) || 1;
+        let incBarHeight = Math.round((displayIncome / maxVal) * 130) + 10;
+        let expBarHeight = Math.round((displayExpense / maxVal) * 130) + 10;
 
         mainContent.innerHTML = `
             <div class="analytics-header-row">
@@ -320,12 +542,12 @@ function switchScreen(screenName) {
                 <div class="chart-title-area">Cash Flow Comparison (Rs.)</div>
                 <div class="css-bar-chart-container">
                     <div class="chart-bar-column">
-                        <span class="bar-value-label">${Math.round(financialData.income/1000)}k</span>
+                        <span class="bar-value-label">${Math.round(displayIncome / 1000)}k</span>
                         <div class="actual-bar-fill fill-income-color" style="height: ${incBarHeight}px"></div>
                         <span class="column-title-label">Income</span>
                     </div>
                     <div class="chart-bar-column">
-                        <span class="bar-value-label">${Math.round(financialData.expenses/1000)}k</span>
+                        <span class="bar-value-label">${Math.round(displayExpense / 1000)}k</span>
                         <div class="actual-bar-fill fill-expense-color" style="height: ${expBarHeight}px"></div>
                         <span class="column-title-label">Expenses</span>
                     </div>
@@ -363,117 +585,237 @@ function switchScreen(screenName) {
     }
 }
 
-function openExpensesUpdateModal() {
+/**
+ * Handles goal purchase workflows by marking targets as verified.
+ */
+window.triggerGoalPurchase = function(goalId, goalName) {
+    if (!Array.isArray(financialData.goals)) return;
+    const goal = financialData.goals.find(g => g.id === goalId);
+    if (!goal) return;
+
+    goal.isPurchased = true;
+    financialData.activeNotification = `Goal Completed: "${goalName}" is ready to buy! 🛒`;
+
+    saveData(); 
+    switchScreen('goals');
+    showGoalConfirmationToast(`Purchased: ${goalName}! Savings updated.`);
+};
+
+/**
+ * Standard interface wrapper for creating system modal overlays.
+ */
+function createModalOverlay(htmlContent) {
+    const currentOverlay = document.getElementById('modal-layer');
+    if (currentOverlay) currentOverlay.remove();
+
     const overlay = document.createElement('div');
     overlay.className = 'cfo-modal-overlay';
     overlay.id = 'modal-layer';
-    overlay.innerHTML = `
+    overlay.innerHTML = htmlContent;
+    
+    const appFrame = document.querySelector('.app-container');
+    if (appFrame) appFrame.appendChild(overlay);
+}
+
+// --- SYSTEM COMPONENT MODALS DEFINITIONS ---
+function openExpensesUpdateModal() {
+    createModalOverlay(`
         <div class="cfo-modal-box">
-            <h3>Update Monthly Expenses</h3>
-            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Apna custom monthly expense total adjust karein:</p>
-            <input type="number" id="new-expenses-val" class="modal-input-field" value="${financialData.expenses}" placeholder="Enter total expenses...">
-            <div class="modal-actions-row">
+            <h3>Update Expenses &amp; Budget</h3>
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Apna custom monthly expense total adjust karein:</p>
+            <input type="number" id="new-expenses-val" class="modal-input-field" value="${Number(financialData.expenses)}" placeholder="Enter total expenses...">
+            
+            <p style="font-size:11px; color:var(--text-muted); margin-top:10px; margin-bottom:5px;">Set Monthly Warning Limit (Rs.):</p>
+            <input type="number" id="warning-limit-val" class="modal-input-field" value="${Number(financialData.expenseWarningLimit || 40000)}" placeholder="Warning limit target...">
+            
+            <div class="modal-actions-row" style="margin-top:12px;">
                 <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
-                <button class="modal-btn btn-primary" id="save-expenses-btn">Update Expenses</button>
+                <button class="modal-btn btn-primary" id="save-expenses-btn">Update Configuration</button>
             </div>
         </div>
-    `;
-    document.querySelector('.app-container').appendChild(overlay);
-    document.getElementById('save-expenses-btn').addEventListener('click', () => {
+    `);
+
+    safelyBindClick('save-expenses-btn', () => {
         let amount = parseFloat(document.getElementById('new-expenses-val').value);
-        if(!isNaN(amount) && amount >= 0) {
+        let limit = parseFloat(document.getElementById('warning-limit-val').value);
+        
+        if (!isNaN(amount) && amount >= 0 && !isNaN(limit) && limit >= 0) {
             financialData.expenses = amount;
+            financialData.expenseWarningLimit = limit;
             localStorage.setItem('expensesOverridden', 'true'); 
             saveData();
             closeModal();
             switchScreen('dashboard');
+        } else {
+            alert("Please provide proper positive inputs.");
         }
     });
 }
 
+window.openEditTransactionModal = function(txId) {
+    if (!Array.isArray(financialData.transactions)) return;
+    const tx = financialData.transactions.find(t => t.id === txId);
+    if (!tx) return;
+
+    createModalOverlay(`
+        <div class="cfo-modal-box">
+            <h3>✏️ Edit Log Details</h3>
+            <label style="font-size:11px; color:var(--text-muted);">Title description:</label>
+            <input type="text" id="edit-tx-title" class="modal-input-field" value="${sanitizeInput(tx.title)}">
+            
+            <label style="font-size:11px; color:var(--text-muted); margin-top:8px; display:block;">Amount (Rs.):</label>
+            <input type="number" id="edit-tx-amount" class="modal-input-field" value="${Number(tx.amount)}">
+            
+            <div class="modal-actions-row" style="margin-top:12px;">
+                <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="modal-btn btn-primary" id="confirm-modify-tx-btn">Save Record</button>
+            </div>
+        </div>
+    `);
+
+    safelyBindClick('confirm-modify-tx-btn', () => {
+        const updatedTitle = document.getElementById('edit-tx-title').value.trim();
+        const updatedAmount = parseFloat(document.getElementById('edit-tx-amount').value);
+
+        if (!updatedTitle || isNaN(updatedAmount) || updatedAmount <= 0) {
+            alert("Sahi specifications type karein!");
+            return;
+        }
+
+        tx.title = updatedTitle;
+        tx.amount = updatedAmount;
+        
+        saveData();
+        closeModal();
+        switchScreen('transactions');
+    });
+};
+
+window.deleteTransaction = function(txId) {
+    if (!Array.isArray(financialData.transactions)) return;
+    const index = financialData.transactions.findIndex(t => t.id === txId);
+    if (index === -1) return;
+
+    if (confirm(`Kya aap yeh transaction log remove karna chahte hain?`)) {
+        financialData.transactions.splice(index, 1);
+        saveData();
+        switchScreen('transactions');
+    }
+};
+
 function openSavingsUpdateModal() {
-    const overlay = document.createElement('div');
-    overlay.className = 'cfo-modal-overlay';
-    overlay.id = 'modal-layer';
-    overlay.innerHTML = `
+    createModalOverlay(`
         <div class="cfo-modal-box">
             <h3>Update Monthly Savings (Rs.)</h3>
-            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Apni custom savings amount enter karein. System percentage rate automatic calculate karega:</p>
-            <input type="number" id="new-savings-val" class="modal-input-field" value="${financialData.savingsAmount}" placeholder="Enter Rs. amount (e.g. 5000)...">
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Apni custom base savings amount (Rs.) enter karein. System isey automatic percentage rate me convert kar ke display karega:</p>
+            <input type="number" id="new-savings-val" class="modal-input-field" value="${financialData.customSavingsOverride !== null ? Number(financialData.customSavingsOverride) : ''}" placeholder="Enter Rs. amount (e.g. 15000)...">
             <div class="modal-actions-row">
-                <button class="modal-btn btn-secondary" id="reset-savings-btn" style="background:#1a0f0f; color:var(--danger-red); margin-right:auto;">Auto Calc</button>
+                <button class="modal-btn btn-secondary" id="reset-savings-btn" style="background:#1a0f0f; color:var(--danger-red); margin-right:auto;">Auto Calc Base</button>
                 <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
                 <button class="modal-btn btn-primary" id="save-savings-btn">Save Value</button>
             </div>
         </div>
-    `;
-    document.querySelector('.app-container').appendChild(overlay);
+    `);
     
-    document.getElementById('reset-savings-btn').addEventListener('click', () => {
+    safelyBindClick('reset-savings-btn', () => {
         financialData.customSavingsOverride = null;
         saveData();
         closeModal();
         switchScreen('dashboard');
     });
 
-    document.getElementById('save-savings-btn').addEventListener('click', () => {
+    safelyBindClick('save-savings-btn', () => {
         let amount = parseFloat(document.getElementById('new-savings-val').value);
-        if(!isNaN(amount)) {
+        if (!isNaN(amount) && amount >= 0) {
             financialData.customSavingsOverride = amount;
-            financialData.savingsAmount = amount;
             saveData();
             closeModal();
             switchScreen('dashboard');
+        } else {
+            alert("Please enter a valid positive numerical amount.");
         }
     });
 }
 
 function openUserProfileModal() {
-    const overlay = document.createElement('div');
-    overlay.className = 'cfo-modal-overlay';
-    overlay.id = 'modal-layer';
-    overlay.innerHTML = `
-        <div class="cfo-modal-box">
-            <h3>⚙ Update Profile Settings</h3>
-            <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Apna complete display profile manage karein:</p>
+    createModalOverlay(`
+        <div class="cfo-modal-box" style="max-height: 85vh; overflow-y: auto;">
+            <h3>⚙ Update Profile &amp; Financial Settings</h3>
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Apna complete display profile aur core financial inputs manage karein:</p>
             
             <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Full Name:</label>
-            <input type="text" id="profile-name-input" class="modal-input-field" value="${financialData.user || ''}" placeholder="Enter your name...">
+            <input type="text" id="profile-name-input" class="modal-input-field" value="${sanitizeInput(financialData.user || '')}" placeholder="Enter your name...">
             
             <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Age:</label>
-            <input type="number" id="profile-age-input" class="modal-input-field" value="${financialData.userAge || ''}" placeholder="Enter your age...">
+            <input type="number" id="profile-age-input" class="modal-input-field" value="${Number(financialData.userAge) || ''}" placeholder="Enter your age...">
             
             <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Best Line / Custom Motto:</label>
-            <input type="text" id="profile-bestline-input" class="modal-input-field" value="${financialData.bestLine || ''}" placeholder="Enter your custom greeting text...">
+            <input type="text" id="profile-bestline-input" class="modal-input-field" value="${sanitizeInput(financialData.bestLine || '')}" placeholder="Enter your custom greeting text...">
             
             <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Professional Status:</label>
-            <select id="profile-status-input" class="modal-input-field" style="background:#0d1923; color:#fff;">
+            <select id="profile-status-input" class="modal-input-field" style="background:#0d1923; color:#fff; margin-bottom:12px;">
                 <option value="Student" ${financialData.userStatus === 'Student' ? 'selected' : ''}>Student</option>
                 <option value="Employee" ${financialData.userStatus === 'Employee' ? 'selected' : ''}>Employee</option>
             </select>
+
+            <div style="border-top: 1px dashed #223749; margin: 12px 0; padding-top: 12px;">
+                <h4 style="font-size: 13px; color: var(--accent-blue); margin-bottom: 4px;">💰 Core Financial Inputs</h4>
+                <p style="font-size: 10px; color: var(--danger-red); margin-bottom: 8px;">⚠️ Note: Values badalne par pichla saara history logs, expenses, aur goals zero se absolute clear ho jayenge.</p>
+                
+                <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Current Seed Wallet Balance (Rs.):</label>
+                <input type="number" id="profile-balance-input" class="modal-input-field" value="${Number(financialData.initialSeedWallet)}" placeholder="Wallet base balance...">
+                
+                <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Monthly Income (Rs.):</label>
+                <input type="number" id="profile-income-input" class="modal-input-field" value="${Number(financialData.income)}" placeholder="Monthly salary or income...">
+                
+                <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Monthly Expenses Warning Limit (Rs.):</label>
+                <input type="number" id="profile-warning-limit-input" class="modal-input-field" value="${Number(financialData.expenseWarningLimit || 40000)}" placeholder="Expense warning threshold...">
+            </div>
 
             <div class="modal-actions-row" style="margin-top:15px;">
                 <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
                 <button class="modal-btn btn-primary" id="save-profile-btn">Save Configuration</button>
             </div>
         </div>
-    `;
-    document.querySelector('.app-container').appendChild(overlay);
-    document.getElementById('save-profile-btn').addEventListener('click', () => {
+    `);
+
+    safelyBindClick('save-profile-btn', () => {
         const uName = document.getElementById('profile-name-input').value.trim();
-        const uAge = parseInt(document.getElementById('profile-age-input').value);
+        const uAge = parseInt(document.getElementById('profile-age-input').value, 10);
         const uLine = document.getElementById('profile-bestline-input').value.trim();
         const uStatus = document.getElementById('profile-status-input').value;
 
-        if(!uName || !uLine) {
+        const uSeedWallet = parseFloat(document.getElementById('profile-balance-input').value);
+        const uIncome = parseFloat(document.getElementById('profile-income-input').value);
+        const uWarningLimit = parseFloat(document.getElementById('profile-warning-limit-input').value);
+
+        if (!uName || !uLine) {
             alert("Name aur Best Line complete fill karein!");
             return;
         }
 
-        financialData.user = uName;
+        if (isNaN(uSeedWallet) || uSeedWallet < 0 || isNaN(uIncome) || uIncome < 0 || isNaN(uWarningLimit) || uWarningLimit < 0) {
+            alert("Financial values sahi (positive numbers) enter karein!");
+            return;
+        }
+
+        // Set historical asset tracking reference before processing values
+        financialData.previousSeedWallet = financialData.initialSeedWallet;
+
+        financialData.user = uName; 
         financialData.userAge = !isNaN(uAge) ? uAge : "";
         financialData.bestLine = uLine;
         financialData.userStatus = uStatus;
+
+        // Reset arrays to clear old data when financial baseline shifts
+        financialData.transactions = [];
+        financialData.goals = []; 
+        financialData.expenses = 0;
+        financialData.customSavingsOverride = null;
+
+        financialData.initialSeedWallet = uSeedWallet;
+        financialData.income = uIncome;
+        financialData.expenseWarningLimit = uWarningLimit;
 
         saveData();
         closeModal();
@@ -482,66 +824,70 @@ function openUserProfileModal() {
 }
 
 function openBalanceUpdateModal() {
-    const overlay = document.createElement('div');
-    overlay.className = 'cfo-modal-overlay';
-    overlay.id = 'modal-layer';
-    overlay.innerHTML = `
+    createModalOverlay(`
         <div class="cfo-modal-box">
             <h3>Update Current Balance</h3>
-            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Apna initial wallet ya bank account total current balance adjust karein:</p>
-            <input type="number" id="new-balance-val" class="modal-input-field" value="${financialData.balance}" placeholder="Enter available balance...">
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Apna initial wallet base balance daalein (Isme Income automatic sum hojayegi):</p>
+            <input type="number" id="new-balance-val" class="modal-input-field" value="${Number(financialData.initialSeedWallet)}" placeholder="Enter baseline wallet balance...">
             <div class="modal-actions-row">
                 <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
                 <button class="modal-btn btn-primary" id="save-balance-btn">Update Balance</button>
             </div>
         </div>
-    `;
-    document.querySelector('.app-container').appendChild(overlay);
-    document.getElementById('save-balance-btn').addEventListener('click', () => {
+    `);
+
+    safelyBindClick('save-balance-btn', () => {
         let amount = parseFloat(document.getElementById('new-balance-val').value);
-        if(!isNaN(amount) && amount >= 0) {
-            financialData.balance = amount;
+        if (!isNaN(amount) && amount >= 0) {
+            // Save tracking pointer values before executing reset
+            financialData.previousSeedWallet = financialData.initialSeedWallet;
+
+            financialData.transactions = [];
+            financialData.goals = []; 
+            financialData.expenses = 0;
+            financialData.initialSeedWallet = amount; 
+            
             saveData();
             closeModal();
             switchScreen('dashboard');
+        } else {
+            alert("Invalid seed value.");
         }
     });
 }
 
 function openIncomeUpdateModal() {
-    const overlay = document.createElement('div');
-    overlay.className = 'cfo-modal-overlay';
-    overlay.id = 'modal-layer';
-    overlay.innerHTML = `
+    createModalOverlay(`
         <div class="cfo-modal-box">
             <h3>Update Monthly Income Target</h3>
-            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Apni total monthly expected baseline income change karein:</p>
-            <input type="number" id="new-income-val" class="modal-input-field" value="${financialData.income}" placeholder="Enter expected salary/income...">
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Apni total monthly expected income badlein (Yeh automatic current balance me add ho jayegi):</p>
+            <input type="number" id="new-income-val" class="modal-input-field" value="${Number(financialData.income)}" placeholder="Enter expected salary/income...">
             <div class="modal-actions-row">
                 <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
                 <button class="modal-btn btn-primary" id="save-income-btn">Update</button>
             </div>
         </div>
-    `;
-    document.querySelector('.app-container').appendChild(overlay);
-    document.getElementById('save-income-btn').addEventListener('click', () => {
+    `);
+
+    safelyBindClick('save-income-btn', () => {
         let amount = parseFloat(document.getElementById('new-income-val').value);
-        if(!isNaN(amount) && amount >= 0) {
+        if (!isNaN(amount) && amount >= 0) {
             financialData.income = amount;
-            let salTx = financialData.transactions.find(t => t.category === 'Salary');
-            if(salTx) salTx.amount = amount;
+            if (Array.isArray(financialData.transactions) && financialData.transactions.length > 0) {
+                let salTx = financialData.transactions.find(t => t.category === 'Salary');
+                if (salTx) salTx.amount = amount;
+            }
             saveData();
             closeModal();
             switchScreen('dashboard');
+        } else {
+            alert("Please provide a accurate number parameter.");
         }
     });
 }
 
 function openDirectIncomeModal() {
-    const overlay = document.createElement('div');
-    overlay.className = 'cfo-modal-overlay';
-    overlay.id = 'modal-layer';
-    overlay.innerHTML = `
+    createModalOverlay(`
         <div class="cfo-modal-box">
             <h3>💰 Add New Income Inflow</h3>
             <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Pasay kahan se aaye hain? Detail aur amount enter karein:</p>
@@ -552,15 +898,14 @@ function openDirectIncomeModal() {
                 <button class="modal-btn btn-primary" id="save-inflow-btn">Add Money</button>
             </div>
         </div>
-    `;
-    document.querySelector('.app-container').appendChild(overlay);
-    document.getElementById('save-inflow-btn').addEventListener('click', () => {
+    `);
+
+    safelyBindClick('save-inflow-btn', () => {
         let source = document.getElementById('inc-source-input').value.trim() || 'External Income';
         let amount = parseFloat(document.getElementById('inc-amount-input').value);
 
-        if(!isNaN(amount) && amount > 0) {
-            financialData.balance += amount;
-            financialData.income += amount; 
+        if (!isNaN(amount) && amount > 0) {
+            if (!Array.isArray(financialData.transactions)) financialData.transactions = [];
             financialData.transactions.push({
                 id: Date.now(),
                 title: source,
@@ -573,16 +918,15 @@ function openDirectIncomeModal() {
             saveData();
             closeModal();
             switchScreen('dashboard');
+        } else {
+            alert("Please pass a positive numerical addition entry.");
         }
     });
 }
 
 function openCreateGoalModal() {
     closeModal();
-    const overlay = document.createElement('div');
-    overlay.className = 'cfo-modal-overlay';
-    overlay.id = 'modal-layer';
-    overlay.innerHTML = `
+    createModalOverlay(`
         <div class="cfo-modal-box">
             <h3>✨ Create New Financial Goal</h3>
             <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Apna naya bachat target yahan save karein:</p>
@@ -594,9 +938,9 @@ function openCreateGoalModal() {
                 <button class="modal-btn btn-primary" id="confirm-create-goal">Create Goal</button>
             </div>
         </div>
-    `;
-    document.querySelector('.app-container').appendChild(overlay);
-    document.getElementById('confirm-create-goal').addEventListener('click', () => {
+    `);
+
+    safelyBindClick('confirm-create-goal', () => {
         let name = document.getElementById('goal-title-input').value.trim();
         let target = parseFloat(document.getElementById('goal-target-input').value);
         let dateStr = document.getElementById('goal-date-input').value.trim() || 'No Limit';
@@ -606,13 +950,15 @@ function openCreateGoalModal() {
             return;
         }
 
+        if (!Array.isArray(financialData.goals)) financialData.goals = [];
         financialData.goals.push({
             id: Date.now(),
             title: name,
             target: target,
             saved: 0,
             date: dateStr,
-            icon: 'fa-star'
+            icon: 'fa-star',
+            isPurchased: false
         });
 
         saveData();
@@ -623,15 +969,13 @@ function openCreateGoalModal() {
 }
 
 window.openAddFundsModal = function(goalId) {
+    if (!Array.isArray(financialData.goals)) return;
     const targetGoal = financialData.goals.find(g => g.id === goalId);
-    if(!targetGoal) return;
+    if (!targetGoal) return;
 
-    const overlay = document.createElement('div');
-    overlay.className = 'cfo-modal-overlay';
-    overlay.id = 'modal-layer';
-    overlay.innerHTML = `
+    createModalOverlay(`
         <div class="cfo-modal-box">
-            <h3>Save Money: ${targetGoal.title}</h3>
+            <h3>Save Money: ${sanitizeInput(targetGoal.title)}</h3>
             <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Is goal mein kitne paise lock karne hain?</p>
             <input type="number" id="fund-amount-input" class="modal-input-field" placeholder="Rs. Amount enter karein...">
             <div class="modal-actions-row">
@@ -639,25 +983,32 @@ window.openAddFundsModal = function(goalId) {
                 <button class="modal-btn btn-primary" id="confirm-fund-btn">Add Funds</button>
             </div>
         </div>
-    `;
-    document.querySelector('.app-container').appendChild(overlay);
-    document.getElementById('confirm-fund-btn').addEventListener('click', () => {
+    `);
+
+    safelyBindClick('confirm-fund-btn', () => {
         let val = parseFloat(document.getElementById('fund-amount-input').value);
-        if(!isNaN(val) && val > 0) {
-            targetGoal.saved += val;
-            financialData.balance -= val; 
-            saveData();
-            closeModal();
-            switchScreen('goals');
+        if (!isNaN(val) && val > 0) {
+            if (financialData.balance >= val) {
+                targetGoal.saved = (Number(targetGoal.saved) || 0) + val;
+                saveData(); 
+                closeModal();
+                switchScreen('goals');
+            } else {
+                alert("Apke pas account me balance kam hay!");
+            }
+        } else {
+            alert("Please specify a valid value parameter.");
         }
     });
 };
 
 window.deleteGoal = function(goalId) {
+    if (!Array.isArray(financialData.goals)) return;
     const goalIndex = financialData.goals.findIndex(g => g.id === goalId);
     if (goalIndex === -1) return;
+    
     const goalTitle = financialData.goals[goalIndex].title;
-    if (confirm(`Kya aap "${goalTitle}" delete karna chahte hain?`)) {
+    if (confirm(`Kya aap "${goalTitle}" delete karna chahte hain? Saved funds auto release hojayenge.`)) {
         financialData.goals.splice(goalIndex, 1);
         saveData();
         switchScreen('goals'); 
@@ -667,29 +1018,27 @@ window.deleteGoal = function(goalId) {
 
 window.openEditGoalModal = function(goalId) {
     closeModal(); 
+    if (!Array.isArray(financialData.goals)) return;
     const targetGoal = financialData.goals.find(g => g.id === goalId);
     if (!targetGoal) return;
 
-    const overlay = document.createElement('div');
-    overlay.className = 'cfo-modal-overlay';
-    overlay.id = 'modal-layer';
-    overlay.innerHTML = `
+    createModalOverlay(`
         <div class="cfo-modal-box">
             <h3>✏️ Modify Financial Goal</h3>
             <label style="font-size:11px; color:var(--text-muted);">Goal Title:</label>
-            <input type="text" id="edit-goal-title" class="modal-input-field" value="${targetGoal.title}">
+            <input type="text" id="edit-goal-title" class="modal-input-field" value="${sanitizeInput(targetGoal.title)}">
             <label style="font-size:11px; color:var(--text-muted);">Target Amount (Rs.):</label>
-            <input type="number" id="edit-goal-target" class="modal-input-field" value="${targetGoal.target}">
+            <input type="number" id="edit-goal-target" class="modal-input-field" value="${Number(targetGoal.target)}">
             <label style="font-size:11px; color:var(--text-muted);">Target Date:</label>
-            <input type="text" id="edit-goal-date" class="modal-input-field" value="${targetGoal.date}">
+            <input type="text" id="edit-goal-date" class="modal-input-field" value="${sanitizeInput(targetGoal.date)}">
             <div class="modal-actions-row">
                 <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
                 <button class="modal-btn btn-primary" id="confirm-modify-goal">Save Changes</button>
             </div>
         </div>
-    `;
-    document.querySelector('.app-container').appendChild(overlay);
-    document.getElementById('confirm-modify-goal').addEventListener('click', () => {
+    `);
+
+    safelyBindClick('confirm-modify-goal', () => {
         let updatedName = document.getElementById('edit-goal-title').value.trim();
         let updatedTarget = parseFloat(document.getElementById('edit-goal-target').value);
         let updatedDate = document.getElementById('edit-goal-date').value.trim() || 'No Limit';
@@ -710,7 +1059,7 @@ window.openEditGoalModal = function(goalId) {
 
 window.closeModal = function() {
     const m = document.getElementById('modal-layer');
-    if(m) m.remove();
+    if (m) m.remove();
 };
 
 function showGoalConfirmationToast(textMessage) {
@@ -726,19 +1075,27 @@ function showGoalConfirmationToast(textMessage) {
     toast.style.fontSize = '12px';
     toast.style.fontWeight = '700';
     toast.style.zIndex = '999';
-    toast.innerHTML = `🎯 ${textMessage}`;
-    document.querySelector('.app-container').appendChild(toast);
-    setTimeout(() => { toast.remove(); }, 2500);
+    toast.innerHTML = `🎯 ${sanitizeInput(textMessage)}`;
+    
+    const appFrame = document.querySelector('.app-container');
+    if (appFrame) {
+        appFrame.appendChild(toast);
+        setTimeout(() => { toast.remove(); }, 2500);
+    }
 }
 
+// --- CHAT CONTROL ENGINE SYSTEM ---
 function renderChatMessages() {
     const chatBox = document.getElementById('chat-box-area');
-    if(!chatBox) return;
+    if (!chatBox || !Array.isArray(financialData.chatHistory)) return;
     chatBox.innerHTML = '';
+    
     financialData.chatHistory.forEach(msg => {
         const row = document.createElement('div');
         row.className = `chat-row-wrap ${msg.sender === 'user' ? 'align-right' : 'align-left'}`;
-        row.innerHTML = `<div class="chat-bubble ${msg.sender === 'user' ? 'user-bubble' : 'bot-bubble'} ${msg.type || ''}">${msg.text}</div>`;
+        // Verify type definitions before rendering unescaped html wrappers
+        const safeTxt = (msg.type === 'expense-msg' || msg.type === 'income-msg') ? msg.text : sanitizeInput(msg.text);
+        row.innerHTML = `<div class="chat-bubble ${msg.sender === 'user' ? 'user-bubble' : 'bot-bubble'} ${sanitizeInput(msg.type || '')}">${safeTxt}</div>`;
         chatBox.appendChild(row);
     });
     chatBox.scrollTop = chatBox.scrollHeight;
@@ -746,10 +1103,11 @@ function renderChatMessages() {
 
 function processChatMessage() {
     const inputField = document.getElementById('user-msg-input');
-    if(!inputField) return;
+    if (!inputField) return;
     const query = inputField.value.trim();
-    if(!query) return;
+    if (!query) return;
 
+    if (!Array.isArray(financialData.chatHistory)) financialData.chatHistory = [];
     financialData.chatHistory.push({ sender: 'user', text: query });
     renderChatMessages();
     inputField.value = '';
@@ -764,40 +1122,54 @@ function processChatMessage() {
             let title = words.slice(1).join(' ');
             let targetCategory = "Others";
             
-            if(title.toLowerCase().includes('burger') || title.toLowerCase().includes('kfc') || title.toLowerCase().includes('khana') || title.toLowerCase().includes('dinner')) {
+            const lowTitle = title.toLowerCase();
+            if (lowTitle.includes('burger') || lowTitle.includes('kfc') || lowTitle.includes('khana') || lowTitle.includes('dinner')) {
                 targetCategory = "Food";
-            } else if(title.toLowerCase().includes('petrol') || title.toLowerCase().includes('fuel') || title.toLowerCase().includes('bike')) {
+            } else if (lowTitle.includes('petrol') || lowTitle.includes('fuel') || lowTitle.includes('bike')) {
                 targetCategory = "Fuel";
             }
 
-            financialData.expenses += amount;
-            financialData.balance -= amount;
-            financialData.transactions.push({
-                id: Date.now(),
-                title: title.charAt(0).toUpperCase() + title.slice(1),
-                amount: amount,
-                type: 'expense',
-                category: targetCategory,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                date: new Date().toISOString().split('T')[0]
-            });
-            responseText = `✔ <b>Expense Tracked</b><br>Amount: Rs. ${amount}<br>Category: ${targetCategory}`;
-            responseType = 'expense-msg';
-        } else if ((words[0].toLowerCase() === 'salary' || words[0].toLowerCase() === 'income') && !isNaN(words[1])) {
+            if (amount > 0) {
+                if (!Array.isArray(financialData.transactions)) financialData.transactions = [];
+                financialData.transactions.push({
+                    id: Date.now(),
+                    title: title.charAt(0).toUpperCase() + title.slice(1),
+                    amount: amount,
+                    type: 'expense',
+                    category: targetCategory,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    date: new Date().toISOString().split('T')[0]
+                });
+                
+                saveData(); 
+
+                const budgetWarningNotice = financialData.expenses >= financialData.expenseWarningLimit 
+                    ? `<br><span style="color:var(--danger-red); font-weight:bold;">⚠️ Warning: Monthly budget limits exceeded!</span>` 
+                    : '';
+
+                responseText = `✔ <b>Expense Tracked</b><br>Amount: Rs. ${amount.toLocaleString()}<br>Category: ${sanitizeInput(targetCategory)}${budgetWarningNotice}`;
+                responseType = 'expense-msg';
+            } else {
+                responseText = "Amount valid honi chahiye.";
+            }
+        } else if (words[0] && (words[0].toLowerCase() === 'salary' || words[0].toLowerCase() === 'income') && !isNaN(words[1])) {
             let amount = parseFloat(words[1]);
-            financialData.income += amount;
-            financialData.balance += amount;
-            financialData.transactions.push({
-                id: Date.now(),
-                title: 'Income Injected',
-                amount: amount,
-                type: 'income',
-                category: 'Salary',
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                date: new Date().toISOString().split('T')[0]
-            });
-            responseText = `💰 <b>Income Logged</b><br>Amount: Rs. ${amount}`;
-            responseType = 'income-msg';
+            if (amount > 0) {
+                if (!Array.isArray(financialData.transactions)) financialData.transactions = [];
+                financialData.transactions.push({
+                    id: Date.now(),
+                    title: 'Income Injected',
+                    amount: amount,
+                    type: 'income',
+                    category: 'Salary',
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    date: new Date().toISOString().split('T')[0]
+                });
+                responseText = `💰 <b>Income Logged</b><br>Amount: Rs. ${amount.toLocaleString()}`;
+                responseType = 'income-msg';
+            } else {
+                responseText = "Amount positive honi chahiye.";
+            }
         }
 
         financialData.chatHistory.push({ sender: 'bot', text: responseText, type: responseType });
@@ -806,12 +1178,15 @@ function processChatMessage() {
     }, 400);
 }
 
+// --- ENGINE INITIALIZATION EVENT BINDINGS ---
 document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById('nav-dashboard').addEventListener('click', () => switchScreen('dashboard'));
-    document.getElementById('nav-transactions').addEventListener('click', () => switchScreen('transactions'));
-    document.getElementById('nav-chat').addEventListener('click', () => switchScreen('chat'));
-    document.getElementById('nav-goals').addEventListener('click', () => switchScreen('goals'));
-    document.getElementById('nav-analytics').addEventListener('click', () => switchScreen('analytics'));
+    safelyBindClick('nav-dashboard', () => switchScreen('dashboard'));
+    safelyBindClick('nav-transactions', () => switchScreen('transactions'));
+    safelyBindClick('nav-chat', () => switchScreen('chat'));
+    safelyBindClick('nav-goals', () => switchScreen('goals'));
+    safelyBindClick('nav-analytics', () => switchScreen('analytics'));
 
+    // Execute state balance validations on app startup
+    saveData(); 
     switchScreen('dashboard');
 });

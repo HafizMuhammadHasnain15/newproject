@@ -1,11 +1,11 @@
 /**
- * Personal CFO - Core Financial Application Engine (Architect Version 4.0 - Production Ready)
+ * Personal CFO - Core Financial Application Engine (Architect Version 4.1 - Production Ready)
  * Integrated Features: Expense Accumulation, Budget Warnings, Transaction CRUD,
  * Goal Savings Integration, Dynamic Cash-to-Percentage Savings Converter,
  * Strict Profile Icon Click Trigger, Zero-State Data Reset on Profile Save,
  * Fixed Direct Balance Overwrites, and Full Asset Breakdown on Health Card view.
  * * * EXPERT ARCHITECT SECURITY & FINANCIAL PATCH UPDATES:
- * 1. Enforced strict formulation: Current Balance = (Initial Wallet Seed + Monthly Income) + Total Incomes - Total Expenses - Total Goals.
+ * 1. Enforced strict formulation: Current Balance = (Initial Wallet Seed + Monthly Income) + Total Incomes - Total Expenses - Total Goals - Custom Savings.
  * 2. Integrated "Previous Account Baseline" history logger tracking inside Financial Metrics Sheet.
  * 3. Resolved transaction state aggregation leaks to prevent residual mathematical side-effects.
  * 4. Implemented secure RegEx string sanitation filtering for all innerHTML insertion points to mitigate XSS risk.
@@ -122,10 +122,6 @@ function saveData() {
             });
         }
 
-        // CFO EXACT ACCOUNTING RULE: Live Balance = (Initial Seed Wallet + Monthly Income Target) + New Incomes - Expenses - Allocated Goals
-        let baselineCapitalPool = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0);
-        financialData.balance = baselineCapitalPool + aggregateLedgerIncome - aggregateLedgerExpense - totalGoalFundsAllocated;
-
         // Savings pool derivation based on balance targets
         let baseSavings = financialData.income - financialData.expenses;
         let standardSavingsBasis = (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined)
@@ -133,6 +129,17 @@ function saveData() {
             : baseSavings;
 
         financialData.savingsAmount = standardSavingsBasis + activeGoalFundsAllocated;
+
+        // CFO EXACT ACCOUNTING RULE: Live Balance deducts both custom savings and goals to secure liquid accuracy
+        let baselineCapitalPool = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0);
+        let deductionsPool = aggregateLedgerExpense + totalGoalFundsAllocated;
+        
+        // If a custom savings override exists, explicitly deduct it from current balance pool as requested
+        if (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined) {
+            deductionsPool += financialData.customSavingsOverride;
+        }
+
+        financialData.balance = baselineCapitalPool + aggregateLedgerIncome - deductionsPool;
 
         if (financialData.income > 0) {
             financialData.savingsRate = Math.round((financialData.savingsAmount / financialData.income) * 100);
@@ -217,7 +224,14 @@ function switchScreen(screenName) {
             financialData.goals.forEach(g => { totalGoalFundsAllocated += (Number(g.saved) || 0); });
         }
         
-        let absoluteGrandTotalWorth = financialData.savingsAmount + totalGoalFundsAllocated + financialData.balance;
+        // Exact calculation requested: Entire inflow asset pool except expenses
+        let aggregateLedgerIncome = 0;
+        if (Array.isArray(financialData.transactions)) {
+            financialData.transactions.forEach(t => {
+                if (t.type === 'income') aggregateLedgerIncome += (Number(t.amount) || 0);
+            });
+        }
+        let absoluteGrandTotalWorth = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0) + aggregateLedgerIncome - financialData.expenses;
 
         mainContent.innerHTML = `
             <div class="dashboard-header" style="position: relative;">
@@ -240,7 +254,7 @@ function switchScreen(screenName) {
 
             <div class="health-card" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; min-height: auto;">
                 <div style="width: 100%; border-bottom: 1px dashed rgba(255,255,255,0.15); padding-bottom: 8px;">
-                    <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-blue); font-weight: 600;">💰 Total Net Asset Value (Saving + Goal + Current Value)</span>
+                    <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-blue); font-weight: 600;">💰 Total Net Asset Value (Total Flow Except Expenses)</span>
                     <h2 style="font-size: 22px; margin: 2px 0 0 0; color: #fff; font-weight: 800;">Rs. ${absoluteGrandTotalWorth.toLocaleString()}</h2>
                 </div>
                 

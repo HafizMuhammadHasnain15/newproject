@@ -1,19 +1,22 @@
 /**
- * Personal CFO - Core Financial Application Engine (Architect Version 4.7 - Production Ready)
+ * Personal CFO - Core Financial Application Engine (Architect Version 5.3 - Production Ready)
  * Integrated Features: Expense Accumulation, Budget Warnings, Transaction CRUD,
  * Goal Savings Integration, Dynamic Cash-to-Percentage Savings Converter,
  * Strict Profile Icon Click Trigger, Zero-State Data Reset on Profile Save,
- * Fixed Direct Balance Overwrites, and Full Asset Breakdown on Health Card view.
+ * Fixed Direct Balance Overwrites, Full Asset Breakdown on Health Card view.
  * * * EXPERT ARCHITECT SECURITY & FINANCIAL PATCH UPDATES:
- * 1. Enforced strict formulation: Current Balance = (Initial Wallet Seed + Monthly Income) + Total Incomes - Total Expenses - Total Goals - Custom Savings.
+ * 1. Enforced strict formulation: Current Balance = (Initial Wallet Seed + Monthly Income) + Total Incomes - Total Expenses - Total Goals - Custom Savings - Total Investments.
  * 2. Integrated "Previous Account Baseline" history logger tracking inside Financial Metrics Sheet.
  * 3. Resolved transaction state aggregation leaks to prevent residual mathematical side-effects.
  * 4. Implemented secure RegEx string sanitation filtering for all innerHTML insertion points to mitigate XSS risk.
  * 5. Sanitized memory footprint by swapping element listeners via functional node-cloning replication strategy.
  * * * FINAL VERIFIED FINANCIAL BUG FIX:
  * - When a goal is purchased (isPurchased: true), its saved funds are strictly deducted from BOTH "Goal Allocation" and "Total Net Asset Value".
- * - SAVINGS POOL DYNAMIC RETAINMENT FIX: Enforced correct mathematical baseline so that purchased goals do NOT force the Savings Pool to zero. 
- *   Instead, it accurately displays whatever remaining active savings are left in the pool.
+ * - SAVINGS POOL DYNAMIC RETAINMENT FIX: Enforced correct mathematical baseline so that purchased goals do NOT force the Savings Pool to zero.
+ * * * NEW DYNAMIC REAL-TIME DATE & TIME SYNC UPDATE:
+ * - Syncs transaction timestamps with mobile system date and time (DD/MM/YYYY + Time).
+ * * * INVESTMENT MODULE INTEGRATION (FINANCE MANAGER UPDATE):
+ * - Added dedicated Investment asset module tracking. Deducts safely from Current Balance while preserving Net Worth asset distribution models.
  */
 
 // --- SECURE CRYPTO & SANITIZATION UTILITIES ---
@@ -54,15 +57,16 @@ const DEFAULT_STATE = {
         { sender: 'bot', text: '👋 Salam Mughal! Main aapka Personal CFO hoon. Kuch bhi kharcha ho yahan likhein (e.g., "500 petrol")', type: 'normal-msg' }
     ],
     transactions: [
-        { id: 1, title: 'Salary Credited', amount: 50000, type: 'income', category: 'Salary', time: '11:22 AM', date: '2026-06-01' },
-        { id: 2, title: 'KFC Burger Meal', amount: 1200, type: 'expense', category: 'Food', time: '11:21 AM', date: '2026-06-19' },
-        { id: 3, title: 'Petrol Refuel', amount: 500, type: 'expense', category: 'Fuel', time: '11:20 AM', date: '2026-06-19' }
+        { id: 1, title: 'Salary Credited', amount: 50000, type: 'income', category: 'Salary', time: '11:22 AM', date: '01/06/2026' },
+        { id: 2, title: 'KFC Burger Meal', amount: 1200, type: 'expense', category: 'Food', time: '11:21 AM', date: '19/06/2026' },
+        { id: 3, title: 'Petrol Refuel', amount: 500, type: 'expense', category: 'Fuel', time: '11:20 AM', date: '19/06/2026' }
     ],
     goals: [
         { id: 101, title: 'New Laptop', target: 150000, saved: 45000, date: '31 Dec 2026', icon: 'fa-laptop', isPurchased: false },
         { id: 102, title: 'Emergency Fund', target: 60000, saved: 15000, date: '31 Aug 2026', icon: 'fa-shield-halved', isPurchased: false },
         { id: 103, title: 'PS5 Console', target: 70000, saved: 70000, date: '31 Jan 2027', icon: 'fa-gamepad', isPurchased: false }
-    ]
+    ],
+    investments: [] // Finance Manager Investment Ledger
 };
 
 let financialData = (() => {
@@ -84,6 +88,9 @@ let financialData = (() => {
         if (parsed.activeNotification === undefined) {
             parsed.activeNotification = null;
         }
+        if (!parsed.investments) {
+            parsed.investments = [];
+        }
         return parsed;
     } catch (e) {
         console.error("Critical State Engine Extraction Error, fallback executed.", e);
@@ -97,6 +104,7 @@ let isNotificationDropdownOpen = false;
 // Shared calculation storage variables for global template sync
 let totalGoalFundsAllocated = 0; 
 let absoluteGrandTotalWorth = 0;
+let totalInvestmentsAccumulated = 0;
 
 /**
  * Derives and calculates all balance, income, expense, and savings data loops
@@ -107,23 +115,33 @@ function saveData() {
         let aggregateLedgerIncome = 0;
         let aggregateLedgerExpense = 0;
 
+        // Calculate Investment totals first to ensure separation from normal expenses
+        totalInvestmentsAccumulated = 0;
+        if (Array.isArray(financialData.investments)) {
+            financialData.investments.forEach(inv => {
+                totalInvestmentsAccumulated += (Number(inv.amount) || 0);
+            });
+        }
+
         if (Array.isArray(financialData.transactions)) {
             financialData.transactions.forEach(t => {
                 const amt = Number(t.amount) || 0;
                 if (t.type === 'income') {
                     aggregateLedgerIncome += amt;
                 } else if (t.type === 'expense') {
-                    aggregateLedgerExpense += amt;
+                    // Investment transaction should not be added to Expenses
+                    if (t.category !== 'Investments') {
+                        aggregateLedgerExpense += amt;
+                    }
                 }
             });
         }
 
-        // Set live expenses based on transactions
+        // Set live expenses based on non-investment transactions
         financialData.expenses = aggregateLedgerExpense;
 
         totalGoalFundsAllocated = 0; // Reset global metric for display (Only counts active non-bought goals)
         let totalAllGoalsIncludingPurchased = 0; // Total tracking for layout deduction matrix
-        let purchasedGoalFundsDeduction = 0;
 
         if (Array.isArray(financialData.goals)) {
             financialData.goals.forEach(g => {
@@ -131,11 +149,7 @@ function saveData() {
                 totalAllGoalsIncludingPurchased += savedAmt;
                 
                 if (!g.isPurchased) {
-                    // SAKHT RULE: Goal Allocation card me sirf wahi paise show honge jo abi tak buy nahi kiye gye!
                     totalGoalFundsAllocated += savedAmt;
-                } else {
-                    // Agar buy now ho chuka hay tou isko asset loss record pool me add karein
-                    purchasedGoalFundsDeduction += savedAmt;
                 }
             });
         }
@@ -143,8 +157,6 @@ function saveData() {
         // Core base savings logic
         let baseSavings = financialData.income - financialData.expenses;
         
-        // FIXED LIVE SAVINGS POOL MATH LOGIC:
-        // Ab goal buy karne par Savings Pool zero nahi hoga, balkay baqi bachi hui saari savings (active goals + base savings) live show hoti rahegi.
         if (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined) {
             financialData.savingsAmount = financialData.customSavingsOverride + totalGoalFundsAllocated;
         } else {
@@ -153,9 +165,9 @@ function saveData() {
 
         if (financialData.savingsAmount < 0) financialData.savingsAmount = 0;
 
-        // CFO EXACT ACCOUNTING RULE: Live Balance calculation loop
+        // Investment safely deducted from Current Balance
         let baselineCapitalPool = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0);
-        let deductionsPool = aggregateLedgerExpense + totalAllGoalsIncludingPurchased;
+        let deductionsPool = aggregateLedgerExpense + totalAllGoalsIncludingPurchased + totalInvestmentsAccumulated;
         
         if (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined) {
             deductionsPool += financialData.customSavingsOverride;
@@ -174,9 +186,9 @@ function saveData() {
         else if (financialData.savingsRate > 20) financialData.healthScore = 79;
         else financialData.healthScore = 55;
 
-        // SAKHT RULE FOR TOTAL NET ASSET VALUE: Pure flow except expenses MINUS purchased goal amount cash outflows
+        // FIXED LOGIC CHANGE: Total Net Asset Value calculation shows total money minus only real expenses
         let totalAssetInflowSum = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0) + aggregateLedgerIncome;
-        absoluteGrandTotalWorth = totalAssetInflowSum - financialData.expenses - purchasedGoalFundsDeduction;
+        absoluteGrandTotalWorth = totalAssetInflowSum - aggregateLedgerExpense;
 
         localStorage.setItem('myCFOData', JSON.stringify(financialData));
     } catch (error) {
@@ -236,22 +248,25 @@ function switchScreen(screenName) {
             ? `<span style="color:var(--danger-red); font-weight:bold;">⚠️ Budget Exceeded!</span>` 
             : `Monthly Expenses ✏`;
 
+        const currentSystemDateObj = new Date();
+        const liveMonthYearString = currentSystemDateObj.toLocaleDateString('en-US', {
+            month: 'long',
+            year: 'numeric'
+        });
+
         // --- CORE LIVE NOTIFICATION GENERATOR ENGINE ---
         let dynamicNotificationsList = [];
 
-        // 1. Alert if current balance is 20% or less of the Initial Seed Wallet Base
         let seedWalletTarget = Number(financialData.initialSeedWallet) || 1;
         let currentBalancePercent = (financialData.balance / seedWalletTarget) * 100;
         if (currentBalancePercent <= 20) {
             dynamicNotificationsList.push(`⚠️ Alert: Your wallet current balance has dropped to ${currentBalancePercent.toFixed(0)}%! Please restrict further outflows.`);
         }
 
-        // 2. Expense Limit Overwrite / Warning Exceeded Checks
         if (isBudgetExceeded) {
             dynamicNotificationsList.push(`🚨 Warning: Monthly expense tracking limit has been breached! Expenses crossed Rs. ${Number(financialData.expenseWarningLimit).toLocaleString()}`);
         }
 
-        // 3. Goal Savings Target Achievement Real-time Trackers
         if (Array.isArray(financialData.goals)) {
             financialData.goals.forEach(g => {
                 if (Number(g.saved) >= Number(g.target) && !g.isPurchased) {
@@ -260,7 +275,6 @@ function switchScreen(screenName) {
             });
         }
 
-        // Build the active dropdown items UI overlay element block conditionally
         let notificationDropdownOverlayHTML = '';
         if (isNotificationDropdownOpen) {
             let optionsRows = '';
@@ -302,7 +316,6 @@ function switchScreen(screenName) {
                     </div>
                 </div>
                 
-                <!-- TOP RIGHT NOTIFICATION BELL INTERACTIVE ACTION BUTTON COMPONENT -->
                 <button id="dashboard-bell-icon" class="notification-bell" style="cursor: pointer; position: relative; outline: none; background: var(--card-bg); border: 1px solid var(--border-color); display: flex; justify-content: center; align-items: center;" aria-label="Toggle Alert Window">
                     <i class="fa-solid fa-bell"></i>
                     ${dynamicNotificationsList.length > 0 ? `<span class="bell-dot" style="background: var(--danger-red); width: 8px; height: 8px; top: 8px; right: 8px;"></span>` : ''}
@@ -313,7 +326,7 @@ function switchScreen(screenName) {
 
             <div class="health-card" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; min-height: auto;">
                 <div style="width: 100%; border-bottom: 1px dashed rgba(255,255,255,0.15); padding-bottom: 8px;">
-                    <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-blue); font-weight: 600;">💰 Total Net Asset Value (Total Flow Except Expenses)</span>
+                    <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-blue); font-weight: 600;">💰 Total Net Asset Value (Total Net Worth)</span>
                     <h2 style="font-size: 22px; margin: 2px 0 0 0; color: #fff; font-weight: 800;">Rs. ${absoluteGrandTotalWorth.toLocaleString()}</h2>
                 </div>
                 
@@ -327,10 +340,11 @@ function switchScreen(screenName) {
                     <div style="font-size: 11px;"><span style="color:var(--text-muted);">Current Balance:</span><br><b style="color:#fff;">Rs. ${financialData.balance.toLocaleString()}</b></div>
                     <div style="font-size: 11px;"><span style="color:var(--text-muted);">Monthly Income:</span><br><b style="color:#fff;">Rs. ${financialData.income.toLocaleString()}</b></div>
                     <div style="font-size: 11px;"><span style="color:var(--text-muted);">Monthly Expenses:</span><br><b style="color:var(--danger-red);">Rs. ${financialData.expenses.toLocaleString()}</b></div>
-                    <div style="font-size: 11px;"><span style="color:var(--text-muted);">Goal Allocation:</span><br><b style="color:var(--amber-gold);">Rs. ${totalGoalFundsAllocated.toLocaleString()}</b></div>
-                    
+                    <div style="font-size: 11px;"><span style="color:var(--amber-gold);">Goal Allocation:</span><br><b style="color:var(--amber-gold);">Rs. ${totalGoalFundsAllocated.toLocaleString()}</b></div>
+                    <div style="font-size: 11px; grid-column: span 2; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 4px;">
+                        <span style="color:var(--accent-blue);">Total Investments Asset Pool:</span> <b style="color:var(--accent-blue);">Rs. ${totalInvestmentsAccumulated.toLocaleString()}</b>
+                    </div>
                     <div style="font-size: 11px; grid-column: span 2; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px;">
-                        <!-- Fixed to show verbatim from image_0a8d37.png but with dynamic remaining savings retainment -->
                         <span style="color:var(--text-muted);">Savings Pool:</span> <b style="color:var(--primary-green);">Rs. ${financialData.savingsAmount.toLocaleString()} (${financialData.savingsRate}%)</b>
                     </div>
                 </div>
@@ -363,7 +377,7 @@ function switchScreen(screenName) {
             </div>
 
             <div class="overview-section">
-                <div class="overview-title"><h3>Month Overview</h3><span>June 2026</span></div>
+                <div class="overview-title"><h3>Month Overview</h3><span>${liveMonthYearString}</span></div>
                 <div class="overview-labels">
                     <span class="lbl-income">Income<br><b>Rs. ${financialData.income.toLocaleString()}</b></span>
                     <span class="lbl-expense">Expenses<br><b>Rs. ${financialData.expenses.toLocaleString()}</b></span>
@@ -376,27 +390,27 @@ function switchScreen(screenName) {
 
             <div class="quick-actions-section">
                 <h3>Quick Actions</h3>
-                <div class="actions-row">
-                    <div class="action-btn-wrapper" id="act-exp" style="cursor: pointer;"><div class="action-btn btn-red"><i class="fa-solid fa-plus"></i></div><span>Add Expense</span></div>
-                    <div class="action-btn-wrapper" id="act-inc" style="cursor: pointer;"><div class="action-btn btn-green"><i class="fa-solid fa-plus"></i></div><span>Add Income</span></div>
-                    <div class="action-btn-wrapper" id="act-goal-dash" style="cursor: pointer;"><div class="action-btn btn-amber"><i class="fa-solid fa-star"></i></div><span>Add Goal</span></div>
-                    <div class="action-btn-wrapper" id="act-rep" style="cursor: pointer;"><div class="action-btn btn-blue"><i class="fa-solid fa-chart-simple"></i></div><span>See Reports</span></div>
+                <div class="actions-row" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;">
+                    <div class="action-btn-wrapper" id="act-exp" style="cursor: pointer;"><div class="action-btn btn-red"><i class="fa-solid fa-plus"></i></div><span style="font-size:9px;">Add Expense</span></div>
+                    <div class="action-btn-wrapper" id="act-inc" style="cursor: pointer;"><div class="action-btn btn-green"><i class="fa-solid fa-plus"></i></div><span style="font-size:9px;">Add Income</span></div>
+                    <div class="action-btn-wrapper" id="act-goal-dash" style="cursor: pointer;"><div class="action-btn btn-amber"><i class="fa-solid fa-star"></i></div><span style="font-size:9px;">Add Goal</span></div>
+                    <div class="action-btn-wrapper" id="act-invest" style="cursor: pointer;"><div class="action-btn btn-blue" style="background: linear-gradient(135deg, #00b0ff, #007bb5);"><i class="fa-solid fa-chart-line"></i></div><span style="font-size:9px; color: var(--accent-blue); font-weight:700;">Invest Money</span></div>
+                    <div class="action-btn-wrapper" id="act-rep" style="cursor: pointer;"><div class="action-btn btn-blue"><i class="fa-solid fa-chart-simple"></i></div><span style="font-size:9px;">See Reports</span></div>
                 </div>
             </div>
         `;
 
-        // Direct isolated execution map to eliminate event bubbling leaks
         safelyBindClick('profile-icon-only-trigger', openUserProfileModal);
         safelyBindClick('act-exp', () => switchScreen('chat'));
         safelyBindClick('act-inc', openDirectIncomeModal);
         safelyBindClick('act-goal-dash', openCreateGoalModal);
+        safelyBindClick('act-invest', openDirectInvestmentModal);
         safelyBindClick('act-rep', () => switchScreen('analytics'));
         safelyBindClick('change-income-trigger', openIncomeUpdateModal);
         safelyBindClick('change-balance-trigger', openBalanceUpdateModal);
         safelyBindClick('change-expenses-trigger', openExpensesUpdateModal);
         safelyBindClick('change-savings-trigger', openSavingsUpdateModal);
         
-        // Handle dropdown display toggling mechanism safely
         safelyBindClick('dashboard-bell-icon', () => {
             isNotificationDropdownOpen = !isNotificationDropdownOpen;
             switchScreen('dashboard');
@@ -405,7 +419,7 @@ function switchScreen(screenName) {
     
     // 2. CFO BOT CHAT SCREEN VIEW STATE
     else if (screenName === 'chat') {
-        isNotificationDropdownOpen = false; // Close active dropdowns when leaving dashboard layer
+        isNotificationDropdownOpen = false;
         mainContent.innerHTML = `
             <div class="chat-screen-layout">
                 <div class="chat-header">
@@ -505,13 +519,16 @@ function switchScreen(screenName) {
         safelyBindClick('create-new-goal-btn', openCreateGoalModal);
     }
     
-    // 4. TRANSACTION MODULE FEED VIEW
+    // 4. TRANSACTION MODULE FEED VIEW (DUAL DATE & TIME VIEW SYNC MAINTAINED)
     else if (screenName === 'transactions') {
         isNotificationDropdownOpen = false;
         let txRows = '';
         if (Array.isArray(financialData.transactions)) {
             financialData.transactions.slice().reverse().forEach(tx => {
                 const isIncome = tx.type === 'income';
+                const txDisplayDate = tx.date ? sanitizeInput(tx.date) : 'N/A';
+                const txDisplayTime = tx.time ? sanitizeInput(tx.time) : 'N/A';
+
                 txRows += `
                     <div class="tx-card" style="margin-bottom:8px;">
                         <div class="tx-left">
@@ -520,7 +537,11 @@ function switchScreen(screenName) {
                             </div>
                             <div>
                                 <h4>${sanitizeInput(tx.title)}</h4>
-                                <p>${sanitizeInput(tx.time)} • ${sanitizeInput(tx.category || 'General')}</p>
+                                <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                                    <i class="fa-regular fa-calendar-days" style="margin-right: 3px; font-size: 10px;"></i> ${txDisplayDate} &nbsp;•&nbsp; 
+                                    <i class="fa-regular fa-clock" style="margin-right: 3px; font-size: 10px;"></i> ${txDisplayTime} &nbsp;•&nbsp; 
+                                    <span>${sanitizeInput(tx.category || 'General')}</span>
+                                </p>
                             </div>
                         </div>
                         <div class="tx-right" style="display:flex; align-items:center; gap:12px;">
@@ -560,7 +581,7 @@ function switchScreen(screenName) {
                 const amt = Number(t.amount) || 0;
                 if (t.type === 'income') {
                     analyticIncome += amt;
-                } else if (t.type === 'expense') {
+                } else if (t.type === 'expense' && t.category !== 'Investments') {
                     analyticExpense += amt;
                     let cat = (t.category || '').toLowerCase();
                     let title = (t.title || '').toLowerCase();
@@ -688,6 +709,79 @@ function createModalOverlay(htmlContent) {
 }
 
 // --- SYSTEM COMPONENT MODALS DEFINITIONS ---
+
+// NEW DIRECT INVESTMENT HANDLER MODAL (FINANCE MANAGER SPECIFIC LOGIC)
+function openDirectInvestmentModal() {
+    createModalOverlay(`
+        <div class="cfo-modal-box">
+            <h3>📈 Deploy New Strategic Investment</h3>
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Investment assets capital aapke active Current Balance se utilize kiye jayenge:</p>
+            
+            <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:2px;">Asset Vehicle / Title:</label>
+            <input type="text" id="inv-title-input" class="modal-input-field" placeholder="e.g., PSX Stocks, Crypto, Gold Vault">
+            
+            <label style="font-size:11px; color:var(--text-muted); display:block; margin-top:8px; margin-bottom:2px;">Capital Amount (Rs.):</label>
+            <input type="number" id="inv-amount-input" class="modal-input-field" placeholder="Enter investment amount">
+            
+            <div style="font-size:10px; color:var(--accent-blue); margin-top:8px; background:rgba(0,176,255,0.06); padding:6px; border-radius:6px;">
+                💡 Available Liquid Capital: Rs. ${financialData.balance.toLocaleString()}
+            </div>
+
+            <div class="modal-actions-row" style="margin-top:12px;">
+                <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="modal-btn btn-primary" id="save-investment-btn" style="background:var(--accent-blue);">Deploy Capital</button>
+            </div>
+        </div>
+    `);
+
+    safelyBindClick('save-investment-btn', () => {
+        let title = document.getElementById('inv-title-input').value.trim() || 'General Asset';
+        let amount = parseFloat(document.getElementById('inv-amount-input').value);
+
+        if (isNaN(amount) || amount <= 0) {
+            alert("Please provide a valid investment capital target.");
+            return;
+        }
+
+        // Strict Financial Check: Capital restriction check
+        if (financialData.balance >= amount) {
+            if (!Array.isArray(financialData.investments)) financialData.investments = [];
+            
+            const currentMobileDateObj = new Date();
+            const formattedLiveDate = currentMobileDateObj.toLocaleDateString('en-GB'); 
+            const formattedLiveTime = currentMobileDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            // Store inside investment pool
+            financialData.investments.push({
+                id: Date.now(),
+                title: title,
+                amount: amount,
+                date: formattedLiveDate,
+                time: formattedLiveTime
+            });
+
+            // Simultaneously create a system ledger record log inside transactions for visual tracking
+            if (!Array.isArray(financialData.transactions)) financialData.transactions = [];
+            financialData.transactions.push({
+                id: Date.now() + 1,
+                title: `Invested in ${title}`,
+                amount: amount,
+                type: 'expense', // Marked under capital allocation tracking
+                category: 'Investments',
+                time: formattedLiveTime,
+                date: formattedLiveDate
+            });
+
+            saveData();
+            closeModal();
+            switchScreen('dashboard');
+            showGoalConfirmationToast(`Capital Deployed: Rs. ${amount.toLocaleString()} locked.`);
+        } else {
+            alert(`Manager Alert: Insufficient Liquid Balance to execute this investment transaction!`);
+        }
+    });
+}
+
 function openExpensesUpdateModal() {
     createModalOverlay(`
         <div class="cfo-modal-box">
@@ -830,7 +924,7 @@ function openUserProfileModal() {
 
             <div style="border-top: 1px dashed #223749; margin: 12px 0; padding-top: 12px;">
                 <h4 style="font-size: 13px; color: var(--accent-blue); margin-bottom: 4px;">💰 Core Financial Inputs</h4>
-                <p style="font-size: 10px; color: var(--danger-red); margin-bottom: 8px;">⚠️ Note: Values badalne par pichla saara history logs, expenses, aur goals zero se absolute clear ho jayenge.</p>
+                <p style="font-size: 10px; color: var(--danger-red); margin-bottom: 8px;">⚠️ Note: Values badalne par pichla saara history logs, expenses, investments aur goals zero se absolute clear ho jayenge.</p>
                 
                 <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Current Seed Wallet Balance (Rs.):</label>
                 <input type="number" id="profile-balance-input" class="modal-input-field" value="${Number(financialData.initialSeedWallet)}" placeholder="Wallet base balance...">
@@ -869,7 +963,6 @@ function openUserProfileModal() {
             return;
         }
 
-        // Set historical asset tracking reference before processing values
         financialData.previousSeedWallet = financialData.initialSeedWallet;
 
         financialData.user = uName; 
@@ -877,9 +970,9 @@ function openUserProfileModal() {
         financialData.bestLine = uLine;
         financialData.userStatus = uStatus;
 
-        // Reset arrays to clear old data when financial baseline shifts
         financialData.transactions = [];
         financialData.goals = []; 
+        financialData.investments = [];
         financialData.expenses = 0;
         financialData.customSavingsOverride = null;
 
@@ -909,11 +1002,11 @@ function openBalanceUpdateModal() {
     safelyBindClick('save-balance-btn', () => {
         let amount = parseFloat(document.getElementById('new-balance-val').value);
         if (!isNaN(amount) && amount >= 0) {
-            // Save tracking pointer values before executing reset
             financialData.previousSeedWallet = financialData.initialSeedWallet;
 
             financialData.transactions = [];
             financialData.goals = []; 
+            financialData.investments = [];
             financialData.expenses = 0;
             financialData.initialSeedWallet = amount; 
             
@@ -976,14 +1069,19 @@ function openDirectIncomeModal() {
 
         if (!isNaN(amount) && amount > 0) {
             if (!Array.isArray(financialData.transactions)) financialData.transactions = [];
+            
+            const currentMobileDateObj = new Date();
+            const formattedLiveDate = currentMobileDateObj.toLocaleDateString('en-GB'); 
+            const formattedLiveTime = currentMobileDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
             financialData.transactions.push({
                 id: Date.now(),
                 title: source,
                 amount: amount,
                 type: 'income',
                 category: 'Salary',
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                date: new Date().toISOString().split('T')[0]
+                time: formattedLiveTime,
+                date: formattedLiveDate
             });
             saveData();
             closeModal();
@@ -1186,6 +1284,10 @@ function processChatMessage() {
         let responseType = 'normal-msg';
         const words = query.split(' ');
 
+        const currentMobileDateObj = new Date();
+        const formattedLiveDate = currentMobileDateObj.toLocaleDateString('en-GB'); 
+        const formattedLiveTime = currentMobileDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
         if (!isNaN(words[0]) && words[1]) {
             let amount = parseFloat(words[0]);
             let title = words.slice(1).join(' ');
@@ -1206,8 +1308,8 @@ function processChatMessage() {
                     amount: amount,
                     type: 'expense',
                     category: targetCategory,
-                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    date: new Date().toISOString().split('T')[0]
+                    time: formattedLiveTime,
+                    date: formattedLiveDate
                 });
                 
                 saveData(); 
@@ -1231,8 +1333,8 @@ function processChatMessage() {
                     amount: amount,
                     type: 'income',
                     category: 'Salary',
-                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    date: new Date().toISOString().split('T')[0]
+                    time: formattedLiveTime,
+                    date: formattedLiveDate
                 });
                 responseText = `💰 <b>Income Logged</b><br>Amount: Rs. ${amount.toLocaleString()}`;
                 responseType = 'income-msg';
@@ -1255,7 +1357,6 @@ document.addEventListener("DOMContentLoaded", () => {
     safelyBindClick('nav-goals', () => switchScreen('goals'));
     safelyBindClick('nav-analytics', () => switchScreen('analytics'));
 
-    // Execute state balance validations on app startup
     saveData(); 
     switchScreen('dashboard');
 });

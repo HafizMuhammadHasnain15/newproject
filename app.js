@@ -1,5 +1,5 @@
 /**
- * Personal CFO - Core Financial Application Engine (Architect Version 4.2 - Production Ready)
+ * Personal CFO - Core Financial Application Engine (Architect Version 4.7 - Production Ready)
  * Integrated Features: Expense Accumulation, Budget Warnings, Transaction CRUD,
  * Goal Savings Integration, Dynamic Cash-to-Percentage Savings Converter,
  * Strict Profile Icon Click Trigger, Zero-State Data Reset on Profile Save,
@@ -10,6 +10,10 @@
  * 3. Resolved transaction state aggregation leaks to prevent residual mathematical side-effects.
  * 4. Implemented secure RegEx string sanitation filtering for all innerHTML insertion points to mitigate XSS risk.
  * 5. Sanitized memory footprint by swapping element listeners via functional node-cloning replication strategy.
+ * * * FINAL VERIFIED FINANCIAL BUG FIX:
+ * - When a goal is purchased (isPurchased: true), its saved funds are strictly deducted from BOTH "Goal Allocation" and "Total Net Asset Value".
+ * - SAVINGS POOL DYNAMIC RETAINMENT FIX: Enforced correct mathematical baseline so that purchased goals do NOT force the Savings Pool to zero. 
+ *   Instead, it accurately displays whatever remaining active savings are left in the pool.
  */
 
 // --- SECURE CRYPTO & SANITIZATION UTILITIES ---
@@ -90,6 +94,10 @@ let financialData = (() => {
 // Temporary tracking flag for dropdown state management
 let isNotificationDropdownOpen = false;
 
+// Shared calculation storage variables for global template sync
+let totalGoalFundsAllocated = 0; 
+let absoluteGrandTotalWorth = 0;
+
 /**
  * Derives and calculates all balance, income, expense, and savings data loops
  * directly from the transaction ledger array before saving to localStorage.
@@ -113,31 +121,42 @@ function saveData() {
         // Set live expenses based on transactions
         financialData.expenses = aggregateLedgerExpense;
 
-        let totalGoalFundsAllocated = 0;
-        let activeGoalFundsAllocated = 0;
+        totalGoalFundsAllocated = 0; // Reset global metric for display (Only counts active non-bought goals)
+        let totalAllGoalsIncludingPurchased = 0; // Total tracking for layout deduction matrix
+        let purchasedGoalFundsDeduction = 0;
+
         if (Array.isArray(financialData.goals)) {
             financialData.goals.forEach(g => {
                 const savedAmt = Number(g.saved) || 0;
-                totalGoalFundsAllocated += savedAmt;
+                totalAllGoalsIncludingPurchased += savedAmt;
+                
                 if (!g.isPurchased) {
-                    activeGoalFundsAllocated += savedAmt;
+                    // SAKHT RULE: Goal Allocation card me sirf wahi paise show honge jo abi tak buy nahi kiye gye!
+                    totalGoalFundsAllocated += savedAmt;
+                } else {
+                    // Agar buy now ho chuka hay tou isko asset loss record pool me add karein
+                    purchasedGoalFundsDeduction += savedAmt;
                 }
             });
         }
 
-        // Savings pool derivation based on balance targets
+        // Core base savings logic
         let baseSavings = financialData.income - financialData.expenses;
-        let standardSavingsBasis = (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined)
-            ? financialData.customSavingsOverride 
-            : baseSavings;
-
-        financialData.savingsAmount = standardSavingsBasis + activeGoalFundsAllocated;
-
-        // CFO EXACT ACCOUNTING RULE: Live Balance deducts both custom savings and goals to secure liquid accuracy
-        let baselineCapitalPool = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0);
-        let deductionsPool = aggregateLedgerExpense + totalGoalFundsAllocated;
         
-        // If a custom savings override exists, explicitly deduct it from current balance pool as requested
+        // FIXED LIVE SAVINGS POOL MATH LOGIC:
+        // Ab goal buy karne par Savings Pool zero nahi hoga, balkay baqi bachi hui saari savings (active goals + base savings) live show hoti rahegi.
+        if (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined) {
+            financialData.savingsAmount = financialData.customSavingsOverride + totalGoalFundsAllocated;
+        } else {
+            financialData.savingsAmount = baseSavings + totalGoalFundsAllocated;
+        }
+
+        if (financialData.savingsAmount < 0) financialData.savingsAmount = 0;
+
+        // CFO EXACT ACCOUNTING RULE: Live Balance calculation loop
+        let baselineCapitalPool = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0);
+        let deductionsPool = aggregateLedgerExpense + totalAllGoalsIncludingPurchased;
+        
         if (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined) {
             deductionsPool += financialData.customSavingsOverride;
         }
@@ -154,6 +173,10 @@ function saveData() {
         if (financialData.savingsRate > 40) financialData.healthScore = 88;
         else if (financialData.savingsRate > 20) financialData.healthScore = 79;
         else financialData.healthScore = 55;
+
+        // SAKHT RULE FOR TOTAL NET ASSET VALUE: Pure flow except expenses MINUS purchased goal amount cash outflows
+        let totalAssetInflowSum = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0) + aggregateLedgerIncome;
+        absoluteGrandTotalWorth = totalAssetInflowSum - financialData.expenses - purchasedGoalFundsDeduction;
 
         localStorage.setItem('myCFOData', JSON.stringify(financialData));
     } catch (error) {
@@ -266,20 +289,6 @@ function switchScreen(screenName) {
             `;
         }
 
-        let totalGoalFundsAllocated = 0;
-        if (Array.isArray(financialData.goals)) {
-            financialData.goals.forEach(g => { totalGoalFundsAllocated += (Number(g.saved) || 0); });
-        }
-        
-        // Exact calculation requested: Entire inflow asset pool except expenses
-        let aggregateLedgerIncome = 0;
-        if (Array.isArray(financialData.transactions)) {
-            financialData.transactions.forEach(t => {
-                if (t.type === 'income') aggregateLedgerIncome += (Number(t.amount) || 0);
-            });
-        }
-        let absoluteGrandTotalWorth = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0) + aggregateLedgerIncome - financialData.expenses;
-
         mainContent.innerHTML = `
             <div class="dashboard-header" style="position: relative;">
                 <div class="user-profile-trigger-zone" style="cursor: default; display: flex; align-items: center; gap: 12px;">
@@ -320,9 +329,8 @@ function switchScreen(screenName) {
                     <div style="font-size: 11px;"><span style="color:var(--text-muted);">Monthly Expenses:</span><br><b style="color:var(--danger-red);">Rs. ${financialData.expenses.toLocaleString()}</b></div>
                     <div style="font-size: 11px;"><span style="color:var(--text-muted);">Goal Allocation:</span><br><b style="color:var(--amber-gold);">Rs. ${totalGoalFundsAllocated.toLocaleString()}</b></div>
                     
-                    <!-- REMOVED THE PREVIOUS AMOUNT BASELINE ROW HISTORY LOGGER ELEMENT AS SPECIFIED -->
-                    
                     <div style="font-size: 11px; grid-column: span 2; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px;">
+                        <!-- Fixed to show verbatim from image_0a8d37.png but with dynamic remaining savings retainment -->
                         <span style="color:var(--text-muted);">Savings Pool:</span> <b style="color:var(--primary-green);">Rs. ${financialData.savingsAmount.toLocaleString()} (${financialData.savingsRate}%)</b>
                     </div>
                 </div>
@@ -448,7 +456,7 @@ function switchScreen(screenName) {
                 const isPurchased = goal.isPurchased === true;
 
                 let strikeStyle = isPurchased 
-                    ? 'position: relative; text-decoration: line-through; opacity: 0.6; filter: grayscale(50%); transition: all 0.3s ease;' 
+                    ? 'position: relative; opacity: 0.6; filter: grayscale(50%); transition: all 0.3s ease;' 
                     : 'position: relative; transition: all 0.3s ease;';
 
                 let actionButtonHTML = `<button class="save-fund-btn" onclick="openAddFundsModal(${goal.id})">Add Funds</button>`;
@@ -469,18 +477,16 @@ function switchScreen(screenName) {
 
                 goalsHTML += `
                     <div class="goal-card" style="${strikeStyle}">
-                        ${isPurchased ? '<div style="position:absolute; top:50%; left:0; width:100%; height:2px; background:var(--danger-red); z-index:10; pointer-events:none;"></div>' : ''}
-                        
                         <div class="goal-top-info">
                             <div class="goal-avatar"><i class="fa-solid ${sanitizeInput(goal.icon || 'fa-star')}"></i></div>
                             <div class="goal-details">
                                 <h4 style="${isPurchased ? 'text-decoration: line-through;' : ''}">${sanitizeInput(goal.title)}</h4>
                                 <p>Target: Rs. ${Number(goal.target).toLocaleString()} • Saved: Rs. ${savedValue.toLocaleString()}</p>
                             </div>
-                            <div class="goal-header-right">
+                            <div class="goal-header-right" style="position: relative; z-index: 99;">
                                 <span class="goal-percentage">${percentage}%</span>
-                                <i class="fa-solid fa-pen goal-action-icon edit-icon" title="Edit Goal" style="cursor:pointer;" onclick="openEditGoalModal(${goal.id})"></i>
-                                <i class="fa-solid fa-trash goal-action-icon delete-icon" title="Delete Goal" style="cursor:pointer;" onclick="deleteGoal(${goal.id})"></i>
+                                ${!isPurchased ? `<i class="fa-solid fa-pen goal-action-icon edit-icon" title="Edit Goal" style="cursor:pointer;" onclick="openEditGoalModal(${goal.id})"></i>` : ''}
+                                <i class="fa-solid fa-trash goal-action-icon delete-icon" title="Delete Goal" style="cursor:pointer; pointer-events: auto;" onclick="deleteGoal(${goal.id})"></i>
                             </div>
                         </div>
                         <div class="goal-progress-track">
@@ -662,7 +668,7 @@ window.triggerGoalPurchase = function(goalId, goalName) {
 
     saveData(); 
     switchScreen('goals');
-    showGoalConfirmationToast(`Purchased: ${goalName}! Savings updated.`);
+    showGoalConfirmationToast(`Purchased: ${goalName}! Net Assets & Allocation updated.`);
 };
 
 /**
@@ -890,7 +896,7 @@ function openUserProfileModal() {
 function openBalanceUpdateModal() {
     createModalOverlay(`
         <div class="cfo-modal-box">
-            <h3>Update Current Balance</h3>
+            <h3>Approve Wallet Seed</h3>
             <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Apna initial wallet base balance daalein (Isme Income automatic sum hojayegi):</p>
             <input type="number" id="new-balance-val" class="modal-input-field" value="${Number(financialData.initialSeedWallet)}" placeholder="Enter baseline wallet balance...">
             <div class="modal-actions-row">
@@ -1157,7 +1163,6 @@ function renderChatMessages() {
     financialData.chatHistory.forEach(msg => {
         const row = document.createElement('div');
         row.className = `chat-row-wrap ${msg.sender === 'user' ? 'align-right' : 'align-left'}`;
-        // Verify type definitions before rendering unescaped html wrappers
         const safeTxt = (msg.type === 'expense-msg' || msg.type === 'income-msg') ? msg.text : sanitizeInput(msg.text);
         row.innerHTML = `<div class="chat-bubble ${msg.sender === 'user' ? 'user-bubble' : 'bot-bubble'} ${sanitizeInput(msg.type || '')}">${safeTxt}</div>`;
         chatBox.appendChild(row);

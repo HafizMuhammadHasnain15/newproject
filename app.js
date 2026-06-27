@@ -1483,3 +1483,210 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 });
+
+// ========================================================
+// CORE INVESTMENTS SYSTEM (SAVE, SHOW, EDIT, DELETE)
+// ========================================================
+
+// Modal Open Trigger
+window.openAddInvestmentModal = function () {
+    document.getElementById('investment-modal-title').textContent = "Add New Investment";
+    document.getElementById('edit-investment-id').value = "";
+    document.getElementById('invest-title').value = "";
+    document.getElementById('invest-amount').value = "";
+    document.getElementById('investment-modal').classList.remove('d-none');
+};
+
+// Modal Close Trigger
+window.closeInvestmentModal = function () {
+    document.getElementById('investment-modal').classList.add('d-none');
+};
+
+// Save & Edit Form Handler
+window.saveInvestmentForm = function () {
+    const id = document.getElementById('edit-investment-id').value;
+    const title = document.getElementById('invest-title').value.trim();
+    const amount = Number(document.getElementById('invest-amount').value) || 0;
+
+    const liveDateObj = new Date();
+    const formattedLiveDate = liveDateObj.toLocaleDateString('en-GB');
+    const formattedLiveTime = liveDateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+    if (!Array.isArray(financialData.transactions)) {
+        financialData.transactions = [];
+    }
+
+    if (id) {
+        // Edit Mode
+        const tx = financialData.transactions.find(t => t.id == id);
+        if (tx) {
+            tx.title = title;
+            tx.amount = amount;
+        }
+    } else {
+        // Add Mode
+        financialData.transactions.push({
+            id: Date.now(),
+            title: title,
+            amount: amount,
+            type: 'expense',
+            category: 'Investment',
+            time: formattedLiveTime,
+            date: formattedLiveDate
+        });
+    }
+
+    saveData();
+    closeInvestmentModal();
+    renderInvestmentHistory();
+
+    if (typeof updateDashboard === 'function') updateDashboard();
+    if (typeof renderUI === 'function') renderUI();
+};
+
+// ========================================================
+// CORE INVESTMENTS ARCHITECTURE WITH FIXED ROUTING SWITCH
+// ========================================================
+// =========================================================================
+// INVESTMENT LEDGER MANAGEMENT ENGINE - NEW SCREEN ROUTE WITH MATH SYNC
+// =========================================================================
+
+// Controls inline screen panel form visibility state
+window.toggleInvestmentFormView = function(show, isEdit = false) {
+    const formCard = document.getElementById('invest-inline-form-card');
+    const triggerBtn = document.getElementById('add-invest-trigger-btn');
+    if (!formCard) return;
+
+    if (show) {
+        formCard.classList.remove('d-none');
+        if (triggerBtn) triggerBtn.style.display = 'none';
+        if (!isEdit) {
+            document.getElementById('investment-screen-form-title').textContent = "Add New Investment";
+            document.getElementById('edit-investment-id').value = "";
+            document.getElementById('invest-title').value = "";
+            document.getElementById('invest-amount').value = "";
+        }
+    } else {
+        formCard.classList.add('d-none');
+        if (triggerBtn) triggerBtn.style.display = 'block';
+    }
+};
+
+// Replaces popup mechanism to seamlessly trigger the entire screen layout
+window.openDirectInvestmentModal = function() {
+    // Hide active dashboard elements
+    const screens = document.querySelectorAll('.screen-content, #main-content > div');
+    screens.forEach(s => s.classList.add('d-none'));
+
+    // Reveal investment screen view wrapper
+    const targetView = document.getElementById('investments-screen');
+    if (targetView) targetView.classList.remove('d-none');
+
+    // Deselect bottom menu icons focus states
+    document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
+
+    // Initialize display components inside workspace
+    toggleInvestmentFormView(false);
+    renderInvestmentHistory();
+};
+
+// CORE MATHEMATICAL LOGIC: Minus from current balance, add to savings asset pool
+window.saveInvestmentForm = function() {
+    const id = document.getElementById('edit-investment-id').value;
+    const title = document.getElementById('invest-title').value.trim() || 'General Asset';
+    const amount = parseFloat(document.getElementById('invest-amount').value);
+
+    if (isNaN(amount) || amount <= 0) {
+        alert("Please provide a valid investment capital target.");
+        return;
+    }
+
+    if (!Array.isArray(financialData.investments)) {
+        financialData.investments = [];
+    }
+
+    if (id) {
+        // Edit flow mode matching indices
+        const invEntry = financialData.investments.find(i => i.id == id);
+        if (invEntry) {
+            invEntry.title = title;
+            invEntry.amount = amount;
+        }
+    } else {
+        // Financial Outflow check: Ensure current liquid capital seed covers requirements
+        if (financialData.balance >= amount) {
+            const currentMobileDateObj = new Date();
+            financialData.investments.push({
+                id: Date.now(),
+                title: title,
+                amount: amount,
+                date: currentMobileDateObj.toLocaleDateString('en-GB'),
+                time: currentMobileDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+        } else {
+            alert("Apke pas account me balance kam hay!");
+            return;
+        }
+    }
+
+    // Persist system calculations state parameters instantly
+    saveData(); 
+    toggleInvestmentFormView(false);
+    renderInvestmentHistory(); 
+    switchScreen('dashboard'); // Redirect back to sync calculations on health cards
+};
+
+// Renders list entries on viewport dynamically
+window.renderInvestmentHistory = function() {
+    const container = document.getElementById('investments-history-list');
+    if (!container) return;
+
+    const list = financialData.investments || [];
+
+    if (list.length === 0) {
+        container.innerHTML = `<p style="text-align:center; padding:30px; color:var(--text-muted); font-size:13px;">No investment logs recorded yet.</p>`;
+        return;
+    }
+
+    container.innerHTML = list.map(inv => `
+        <div class="tx-card" style="margin-bottom:10px; padding:15px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:14px; display:flex; justify-content:space-between; align-items:center;">
+            <div class="tx-left" style="display:flex; align-items:center; gap:12px;">
+                <div class="tx-icon-frame" style="background: rgba(0, 176, 255, 0.1); color: var(--accent-blue); padding:10px; border-radius:10px;">
+                    <i class="fa-solid fa-chart-line"></i>
+                </div>
+                <div>
+                    <h4 style="margin:0; color:#fff; font-size:14px;">${inv.title}</h4>
+                    <p style="margin:4px 0 0 0; font-size:11px; color:var(--text-muted);">${inv.date} • ${inv.time}</p>
+                </div>
+            </div>
+            <div class="tx-right" style="display: flex; align-items: center; gap: 16px; margin-left:auto;">
+                <span style="color: var(--accent-blue); font-weight: 600; font-size: 13px;">Rs. ${inv.amount.toLocaleString()}</span>
+                <div style="display: flex; gap: 12px; cursor:pointer;">
+                    <i class="fa-solid fa-pen-to-square" onclick="triggerInlineEdit(${inv.id})" title="Edit" style="color:var(--accent-blue); font-size:14px;"></i>
+                    <i class="fa-solid fa-trash" onclick="triggerInlineDelete(${inv.id})" title="Delete" style="color:#ff5252; font-size:14px;"></i>
+                </div>
+            </div>
+        </div>
+    `).join('');
+};
+
+// CRUD: Edit entry binder
+window.triggerInlineEdit = function(id) {
+    const inv = financialData.investments.find(i => i.id == id);
+    if (!inv) return;
+
+    toggleInvestmentFormView(true, true);
+    document.getElementById('investment-screen-form-title').textContent = "Edit Investment Details";
+    document.getElementById('edit-investment-id').value = inv.id;
+    document.getElementById('invest-title').value = inv.title;
+    document.getElementById('invest-amount').value = inv.amount;
+};
+
+// CRUD: Delete entry execution
+window.triggerInlineDelete = function(id) {
+    if (confirm("Are you sure you want to delete this investment entry?")) {
+        financialData.investments = (financialData.investments || []).filter(i => i.id != id);
+        saveData();
+        renderInvestmentHistory();
+    }
+};

@@ -77,7 +77,49 @@
     <div class="app-container">
 
         <div id="main-content"></div>
+        <div id="investments-screen" class="screen-content d-none" style="padding: 20px; padding-bottom: 95px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="color:#fff; margin:0;"><i class="fa-solid fa-chart-line"
+                        style="color:var(--accent-blue);"></i> Investment Portfolio</h3>
+                <button onclick="toggleInvestmentFormView(true)" id="add-invest-trigger-btn"
+                    style="background:var(--accent-blue); color:#030a10; border:none; padding:8px 16px; border-radius:10px; font-weight:600; cursor:pointer;">
+                    <i class="fa-solid fa-plus"></i> Add New Asset
+                </button>
+            </div>
 
+            <div id="invest-inline-form-card" class="d-none"
+                style="background:var(--card-bg); border:1px solid var(--border-color); padding:20px; border-radius:16px; margin-bottom:25px;">
+                <h4 id="investment-screen-form-title" style="color:#fff; margin-top:0; margin-bottom:15px;">Add New
+                    Investment</h4>
+                <form onsubmit="event.preventDefault(); saveInvestmentForm();">
+                    <input type="hidden" id="edit-investment-id">
+
+                    <div style="margin-bottom:12px;">
+                        <label style="color:var(--text-muted); font-size:11px; display:block; margin-bottom:4px;">Asset
+                            Title / Platform</label>
+                        <input type="text" id="invest-title" placeholder="e.g., Gold Pool, Stocks, Crypto" required
+                            style="width:100%; padding:10px; border-radius:8px; background:#152632; border:1px solid var(--border-color); color:#fff; font-size:13px;">
+                    </div>
+
+                    <div style="margin-bottom:16px;">
+                        <label style="color:var(--text-muted); font-size:11px; display:block; margin-bottom:4px;">Amount
+                            (Rs.)</label>
+                        <input type="number" id="invest-amount" placeholder="Amount in Rs." required
+                            style="width:100%; padding:10px; border-radius:8px; background:#152632; border:1px solid var(--border-color); color:#fff; font-size:13px;">
+                    </div>
+
+                    <div style="display:flex; justify-content:flex-end; gap:10px;">
+                        <button type="button" onclick="toggleInvestmentFormView(false)"
+                            style="background:#152632; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px;">Cancel</button>
+                        <button type="submit"
+                            style="background:var(--accent-blue); color:#030a10; border:none; padding:6px 14px; border-radius:6px; font-weight:600; cursor:pointer; font-size:12px;">Save
+                            Entry</button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="investments-history-list"></div>
+        </div>
         <div class="bottom-nav">
             <div class="nav-item" id="nav-dashboard">
                 <i class="fa-solid fa-house"></i>

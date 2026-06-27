@@ -11,7 +11,69 @@
 </head>
 
 <body>
+    <div id="splash-screen" class="full-viewport-overlay">
+        <div class="splash-branding-content">
+            <div class="splash-logo-glow"><i class="fa-solid fa-shield-halved"></i></div>
+            <h1 class="splash-title">My CFO</h1>
+            <p class="splash-subtitle">Your Intelligent Financial Officer</p>
+            <div class="splash-loading-spinner"></div>
+        </div>
+    </div>
 
+    <div id="onboarding-screen" class="full-viewport-overlay d-none">
+        <div class="onboarding-carousel-box">
+            <div class="onboarding-slide active-slide" id="slide-1">
+                <div class="onboard-icon"><i class="fa-solid fa-chart-line"></i></div>
+                <h2>Smart Tracking</h2>
+                <p>Track incomes, expenses, and asset investments in real-time with automated metrics sheets.</p>
+            </div>
+            <div class="onboarding-slide d-none" id="slide-2">
+                <div class="onboard-icon"><i class="fa-solid fa-bullseye"></i></div>
+                <h2>Goal Allocation</h2>
+                <p>Lock your savings safely into specialized financial targets and milestones without double deduction
+                    leaks.</p>
+            </div>
+            <div class="onboarding-slide d-none" id="slide-3">
+                <div class="onboard-icon"><i class="fa-solid fa-comment-dots"></i></div>
+                <h2>AI Assistant Advice</h2>
+                <p>Vibe chat directly with your personal CFO engine to manage asset pools and budget warnings instantly.
+                </p>
+            </div>
+
+            <div class="onboard-footer-controls">
+                <div class="slide-indicator-dots">
+                    <span class="dot active"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                </div>
+                <button id="onboard-next-btn" class="onboard-action-cta">Next <i
+                        class="fa-solid fa-arrow-right"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="auth-screen" class="full-viewport-overlay d-none">
+        <div class="auth-card-wrapper">
+            <div class="auth-header-block">
+                <i class="fa-solid fa-lock-open auth-secure-icon"></i>
+                <h3>Secure Verification</h3>
+                <p>Enter your credentials to manage your core ledger pipeline.</p>
+            </div>
+            <form id="secure-auth-form" onsubmit="event.preventDefault(); handleAuthLogin();">
+                <div class="auth-input-group">
+                    <label><i class="fa-solid fa-user"></i> Username</label>
+                    <input type="text" id="auth-username" class="modal-input-field" placeholder="e.g., admin" required>
+                </div>
+                <div class="auth-input-group">
+                    <label><i class="fa-solid fa-key"></i> Passcode Pin</label>
+                    <input type="password" id="auth-passcode" class="modal-input-field" placeholder="••••" maxlength="4"
+                        required>
+                </div>
+                <button type="submit" class="auth-submit-btn">Unlock Personal CFO <i
+                        class="fa-solid fa-unlock"></i></button>
+            </form>
+        </div>
+    </div>
     <div class="app-container">
 
         <div id="main-content"></div>

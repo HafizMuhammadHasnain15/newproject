@@ -691,7 +691,7 @@ function switchScreen(screenName) {
  * Prevents double-dipping by transferring the allocation weight into the transaction ledger,
  * clearing the goal's individual allocation balance so it doesn't double-subtract from current balance.
  */
-window.triggerGoalPurchase = function(goalId, goalName) {
+window.triggerGoalPurchase = function (goalId, goalName) {
     if (!Array.isArray(financialData.goals)) return;
     const goal = financialData.goals.find(g => g.id === goalId);
     if (!goal) return;
@@ -704,8 +704,8 @@ window.triggerGoalPurchase = function(goalId, goalName) {
         // --- STEP 2: Mark as purchased & set saved allocation to 0 ---
         // Taake current balance ka formula isay 'Goals Allocation' se dubara minus na kare
         goal.isPurchased = true;
-        goal.saved = 0; 
-        
+        goal.saved = 0;
+
         financialData.activeNotification = `Goal Completed: "${goalName}" is ready to buy! 🛒`;
 
         const liveDateObj = new Date();
@@ -727,11 +727,11 @@ window.triggerGoalPurchase = function(goalId, goalName) {
             time: formattedLiveTime,
             date: formattedLiveDate
         });
-        
+
         // --- STEP 4: Absolute Balance State Sync ---
         saveData();
         switchScreen('goals');
-        
+
         // Agar aapke engine mein global rendering active hai toh screen automatic sync hojayegi
         if (typeof renderGoals === 'function') renderGoals();
         if (typeof updateDashboard === 'function') updateDashboard();
@@ -739,7 +739,7 @@ window.triggerGoalPurchase = function(goalId, goalName) {
 
         showGoalConfirmationToast(`Purchased: ${goalName}! Balance strictly synchronized.`);
     }
-};       
+};
 /**
  * Standard interface wrapper for creating system modal overlays.
  */
@@ -1407,4 +1407,79 @@ document.addEventListener("DOMContentLoaded", () => {
 
     saveData();
     switchScreen('dashboard');
+    // --- FLOW CONTROL ENGINE: SPLASH -> ONBOARD -> AUTH ---
+    // --- UPDATED FLOW CONTROL ENGINE WITH DYNAMIC USER NAME SYNC ---
+    let currentOnboardSlide = 1;
+
+    // Splash timeout execution loop
+    setTimeout(() => {
+        document.getElementById('splash-screen').classList.add('d-none');
+
+        // Check if onboarding was already seen
+        if (localStorage.getItem('cfo_onboard_seen') === 'true') {
+            document.getElementById('auth-screen').classList.remove('d-none');
+        } else {
+            document.getElementById('onboarding-screen').classList.remove('d-none');
+        }
+    }, 2500);
+
+    // Onboarding Carousel controls
+    document.getElementById('onboard-next-btn').addEventListener('click', () => {
+        document.getElementById(`slide-${currentOnboardSlide}`).classList.add('d-none');
+        currentOnboardSlide++;
+
+        const dots = document.querySelectorAll('.slide-indicator-dots .dot');
+        dots.forEach((dot, index) => {
+            dot.classList.toggle('active', index === (currentOnboardSlide - 1));
+        });
+
+        if (currentOnboardSlide <= 3) {
+            document.getElementById(`slide-${currentOnboardSlide}`).classList.remove('d-none');
+            if (currentOnboardSlide === 3) {
+                document.getElementById('onboard-next-btn').innerHTML = `Get Started <i class="fa-solid fa-circle-check"></i>`;
+            }
+        } else {
+            localStorage.setItem('cfo_onboard_seen', 'true');
+            document.getElementById('onboarding-screen').classList.add('d-none');
+            document.getElementById('auth-screen').classList.remove('d-none');
+        }
+    });
+
+    // Gate validation with Dynamic Profile Name assignment
+    window.handleAuthLogin = function () {
+        const enteredUser = document.getElementById('auth-username').value.trim();
+        const pin = document.getElementById('auth-passcode').value.trim();
+
+        // Passcode validation setup (Username can be anything now!)
+        if (enteredUser !== "" && pin === '1234') {
+
+            // 1. Dynamic User Name Assignment inside financialData state
+            if (typeof financialData === 'undefined') {
+                window.financialData = {};
+            }
+            financialData.userName = enteredUser;
+
+            // 2. Avatar character extract karne ke liye (First Letter)
+            financialData.userAvatarChar = enteredUser.charAt(0).toUpperCase();
+
+            // 3. Hide Auth overlay window
+            document.getElementById('auth-screen').classList.add('d-none');
+
+            // 4. Save to storage & fully refresh UI elements dynamically
+            saveData();
+
+            if (typeof updateDashboard === 'function') updateDashboard();
+            if (typeof renderUI === 'function') renderUI();
+
+            // Force refresh name fields if template literals are injected manually
+            const nameLabel = document.querySelector('.user-name');
+            if (nameLabel) nameLabel.textContent = enteredUser;
+
+            const avatarBox = document.querySelector('.profile-avatar-circle');
+            if (avatarBox) avatarBox.textContent = financialData.userAvatarChar;
+
+        } else {
+            alert("🚨 Access Denied: Please enter a Username and correct Passcode Pin (1234).");
+        }
+    };
 });

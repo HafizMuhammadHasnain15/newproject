@@ -43,16 +43,16 @@ const DEFAULT_STATE = {
     userStatus: "Student",
     bestLine: "Consistently learning, endlessly building.",
     healthScore: 82,
-    initialSeedWallet: 25000,    
+    initialSeedWallet: 25000,
     previousSeedWallet: 25000,   // Expert Memory Track for Historical Baseline Record
     balance: 50000,              // Explicitly derived balance matching (Seed + Income) Base Equation
-    income: 50000,               
-    expenses: 32000,             
-    expenseWarningLimit: 40000,  
-    savingsAmount: 18000,        
+    income: 50000,
+    expenses: 32000,
+    expenseWarningLimit: 40000,
+    savingsAmount: 18000,
     savingsRate: 36,
-    customSavingsOverride: null, 
-    activeNotification: null,     
+    customSavingsOverride: null,
+    activeNotification: null,
     chatHistory: [
         { sender: 'bot', text: '👋 Salam Mughal! Main aapka Personal CFO hoon. Kuch bhi kharcha ho yahan likhein (e.g., "500 petrol")', type: 'normal-msg' }
     ],
@@ -74,7 +74,7 @@ let financialData = (() => {
         const stored = localStorage.getItem('myCFOData');
         if (!stored) return DEFAULT_STATE;
         let parsed = JSON.parse(stored);
-        
+
         // Self-healing check mechanisms for state transitions
         if (parsed.initialSeedWallet === undefined) {
             parsed.initialSeedWallet = parsed.balance !== undefined ? parsed.balance : 25000;
@@ -83,7 +83,7 @@ let financialData = (() => {
             parsed.previousSeedWallet = parsed.initialSeedWallet;
         }
         if (parsed.expenseWarningLimit === undefined) {
-            parsed.expenseWarningLimit = 40000; 
+            parsed.expenseWarningLimit = 40000;
         }
         if (parsed.activeNotification === undefined) {
             parsed.activeNotification = null;
@@ -102,7 +102,7 @@ let financialData = (() => {
 let isNotificationDropdownOpen = false;
 
 // Shared calculation storage variables for global template sync
-let totalGoalFundsAllocated = 0; 
+let totalGoalFundsAllocated = 0;
 let absoluteGrandTotalWorth = 0;
 let totalInvestmentsAccumulated = 0;
 
@@ -147,7 +147,7 @@ function saveData() {
             financialData.goals.forEach(g => {
                 const savedAmt = Number(g.saved) || 0;
                 totalAllGoalsIncludingPurchased += savedAmt;
-                
+
                 if (!g.isPurchased) {
                     totalGoalFundsAllocated += savedAmt;
                 }
@@ -156,7 +156,7 @@ function saveData() {
 
         // Core base savings logic
         let baseSavings = financialData.income - financialData.expenses;
-        
+
         if (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined) {
             financialData.savingsAmount = financialData.customSavingsOverride + totalGoalFundsAllocated;
         } else {
@@ -168,7 +168,7 @@ function saveData() {
         // Investment safely deducted from Current Balance
         let baselineCapitalPool = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0);
         let deductionsPool = aggregateLedgerExpense + totalAllGoalsIncludingPurchased + totalInvestmentsAccumulated;
-        
+
         if (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined) {
             deductionsPool += financialData.customSavingsOverride;
         }
@@ -180,7 +180,7 @@ function saveData() {
         } else {
             financialData.savingsRate = 0;
         }
-        
+
         // Dynamic formulation logic for standard health scores
         if (financialData.savingsRate > 40) financialData.healthScore = 88;
         else if (financialData.savingsRate > 20) financialData.healthScore = 79;
@@ -243,9 +243,9 @@ function switchScreen(screenName) {
 
         let rateColor = financialData.savingsRate >= 0 ? 'var(--primary-green)' : 'var(--danger-red)';
         const isBudgetExceeded = financialData.expenses >= (financialData.expenseWarningLimit || Infinity);
-        
-        const expenseTitleText = isBudgetExceeded 
-            ? `<span style="color:var(--danger-red); font-weight:bold;">⚠️ Budget Exceeded!</span>` 
+
+        const expenseTitleText = isBudgetExceeded
+            ? `<span style="color:var(--danger-red); font-weight:bold;">⚠️ Budget Exceeded!</span>`
             : `Monthly Expenses ✏`;
 
         const currentSystemDateObj = new Date();
@@ -410,13 +410,13 @@ function switchScreen(screenName) {
         safelyBindClick('change-balance-trigger', openBalanceUpdateModal);
         safelyBindClick('change-expenses-trigger', openExpensesUpdateModal);
         safelyBindClick('change-savings-trigger', openSavingsUpdateModal);
-        
+
         safelyBindClick('dashboard-bell-icon', () => {
             isNotificationDropdownOpen = !isNotificationDropdownOpen;
             switchScreen('dashboard');
         });
-    } 
-    
+    }
+
     // 2. CFO BOT CHAT SCREEN VIEW STATE
     else if (screenName === 'chat') {
         isNotificationDropdownOpen = false;
@@ -439,16 +439,16 @@ function switchScreen(screenName) {
         `;
         safelyBindClick('back-to-dash', () => switchScreen('dashboard'));
         safelyBindClick('send-msg-btn', processChatMessage);
-        
+
         const textInput = document.getElementById('user-msg-input');
         if (textInput) {
-            textInput.addEventListener('keypress', (e) => { 
-                if (e.key === 'Enter') processChatMessage(); 
+            textInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') processChatMessage();
             });
         }
         renderChatMessages();
-    } 
-    
+    }
+
     // 3. GOALS SCREEN LOGIC SYSTEM VIEW
     else if (screenName === 'goals') {
         isNotificationDropdownOpen = false;
@@ -465,16 +465,16 @@ function switchScreen(screenName) {
                 const savedValue = Number(goal.saved) || 0;
                 let percentage = Math.min(Math.round((savedValue / targetValue) * 100), 100);
                 let remaining = Math.max(0, targetValue - savedValue);
-                
+
                 const isAchieved = savedValue >= targetValue;
                 const isPurchased = goal.isPurchased === true;
 
-                let strikeStyle = isPurchased 
-                    ? 'position: relative; opacity: 0.6; filter: grayscale(50%); transition: all 0.3s ease;' 
+                let strikeStyle = isPurchased
+                    ? 'position: relative; opacity: 0.6; filter: grayscale(50%); transition: all 0.3s ease;'
                     : 'position: relative; transition: all 0.3s ease;';
 
                 let actionButtonHTML = `<button class="save-fund-btn" onclick="openAddFundsModal(${goal.id})">Add Funds</button>`;
-                
+
                 if (isAchieved) {
                     if (isPurchased) {
                         actionButtonHTML = `<span style="color:var(--primary-green); font-size:11px; font-weight:bold;"><i class="fa-solid fa-circle-check"></i> Bought &amp; Logged</span>`;
@@ -518,7 +518,7 @@ function switchScreen(screenName) {
         mainContent.innerHTML = goalsHTML;
         safelyBindClick('create-new-goal-btn', openCreateGoalModal);
     }
-    
+
     // 4. TRANSACTION MODULE FEED VIEW (DUAL DATE & TIME VIEW SYNC MAINTAINED)
     else if (screenName === 'transactions') {
         isNotificationDropdownOpen = false;
@@ -568,8 +568,8 @@ function switchScreen(screenName) {
                 ${txRows || '<p style="color:var(--text-muted);text-align:center;padding:20px;">No logs discovered.</p>'}
             </div>
         `;
-    } 
-    
+    }
+
     // 5. ANALYTICS ENGINE COMPUTATION CONTEXT
     else if (screenName === 'analytics') {
         isNotificationDropdownOpen = false;
@@ -585,7 +585,7 @@ function switchScreen(screenName) {
                     analyticExpense += amt;
                     let cat = (t.category || '').toLowerCase();
                     let title = (t.title || '').toLowerCase();
-                    
+
                     if (cat.includes('food') || title.includes('kfc') || title.includes('burger') || title.includes('khana') || title.includes('dinner')) {
                         foodSum += amt;
                     } else if (cat.includes('fuel') || title.includes('petrol') || title.includes('bike')) {
@@ -601,13 +601,13 @@ function switchScreen(screenName) {
         const displayExpense = analyticExpense > 0 ? analyticExpense : financialData.expenses;
 
         let absoluteNetSavings = displayIncome - displayExpense;
-        let calculatedTotalExpenses = foodSum + fuelSum + otherSum || 1; 
+        let calculatedTotalExpenses = foodSum + fuelSum + otherSum || 1;
 
         let foodPercent = Math.round((foodSum / calculatedTotalExpenses) * 100);
         let fuelPercent = Math.round((fuelSum / calculatedTotalExpenses) * 100);
         let otherPercent = Math.round((otherSum / calculatedTotalExpenses) * 100);
 
-        let currentDay = new Date().getDate(); 
+        let currentDay = new Date().getDate();
         let currentDailyBurnAvg = Math.round(displayExpense / currentDay);
 
         let maxVal = Math.max(displayIncome, displayExpense) || 1;
@@ -679,19 +679,67 @@ function switchScreen(screenName) {
 /**
  * Handles goal purchase workflows by marking targets as verified.
  */
+
+/**
+ * Handles goal purchase workflows by marking targets as verified.
+ * STRICT SINGLE-DEDUCTION PATCH FIXED: Prevents double deduction by relying ONLY 
+ * on automated ledger entry without touching real-time variables directly.
+ */
+/**
+ * Handles goal purchase workflows by marking targets as verified.
+ * STRICT DOUBLE-DEDUCTION FINANCIAL SYNC PATCH:
+ * Prevents double-dipping by transferring the allocation weight into the transaction ledger,
+ * clearing the goal's individual allocation balance so it doesn't double-subtract from current balance.
+ */
 window.triggerGoalPurchase = function(goalId, goalName) {
     if (!Array.isArray(financialData.goals)) return;
     const goal = financialData.goals.find(g => g.id === goalId);
     if (!goal) return;
 
-    goal.isPurchased = true;
-    financialData.activeNotification = `Goal Completed: "${goalName}" is ready to buy! 🛒`;
+    // Check karein ke agar goal pehle se purchased nahi hai tabhi balance update ho
+    if (!goal.isPurchased) {
+        // --- STEP 1: Store the balance to be moved ---
+        const amountToTransfer = Number(goal.saved) || 0;
 
-    saveData(); 
-    switchScreen('goals');
-    showGoalConfirmationToast(`Purchased: ${goalName}! Net Assets & Allocation updated.`);
-};
+        // --- STEP 2: Mark as purchased & set saved allocation to 0 ---
+        // Taake current balance ka formula isay 'Goals Allocation' se dubara minus na kare
+        goal.isPurchased = true;
+        goal.saved = 0; 
+        
+        financialData.activeNotification = `Goal Completed: "${goalName}" is ready to buy! 🛒`;
 
+        const liveDateObj = new Date();
+        const formattedLiveDate = liveDateObj.toLocaleDateString('en-GB'); // DD/MM/YYYY
+        const formattedLiveTime = liveDateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+        if (!Array.isArray(financialData.transactions)) {
+            financialData.transactions = [];
+        }
+
+        // --- STEP 3: Inject into Transactions Ledger ---
+        // Ab paise safe tareeqe se transactions array ke expense module mein transfer ho gaye hain.
+        financialData.transactions.push({
+            id: Date.now(),
+            title: `Purchased Goal Asset: ${goalName}`,
+            amount: amountToTransfer,
+            type: 'expense',
+            category: 'Goals Assets',
+            time: formattedLiveTime,
+            date: formattedLiveDate
+        });
+        
+        // --- STEP 4: Absolute Balance State Sync ---
+        saveData();
+        switchScreen('goals');
+        
+        // Agar aapke engine mein global rendering active hai toh screen automatic sync hojayegi
+        if (typeof renderGoals === 'function') renderGoals();
+        if (typeof updateDashboard === 'function') updateDashboard();
+        if (typeof renderUI === 'function') renderUI();
+
+        showGoalConfirmationToast(`Purchased: ${goalName}! Balance strictly synchronized.`);
+    }
+};       
 /**
  * Standard interface wrapper for creating system modal overlays.
  */
@@ -703,7 +751,7 @@ function createModalOverlay(htmlContent) {
     overlay.className = 'cfo-modal-overlay';
     overlay.id = 'modal-layer';
     overlay.innerHTML = htmlContent;
-    
+
     const appFrame = document.querySelector('.app-container');
     if (appFrame) appFrame.appendChild(overlay);
 }
@@ -746,9 +794,9 @@ function openDirectInvestmentModal() {
         // Strict Financial Check: Capital restriction check
         if (financialData.balance >= amount) {
             if (!Array.isArray(financialData.investments)) financialData.investments = [];
-            
+
             const currentMobileDateObj = new Date();
-            const formattedLiveDate = currentMobileDateObj.toLocaleDateString('en-GB'); 
+            const formattedLiveDate = currentMobileDateObj.toLocaleDateString('en-GB');
             const formattedLiveTime = currentMobileDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
             // Store inside investment pool
@@ -802,11 +850,11 @@ function openExpensesUpdateModal() {
     safelyBindClick('save-expenses-btn', () => {
         let amount = parseFloat(document.getElementById('new-expenses-val').value);
         let limit = parseFloat(document.getElementById('warning-limit-val').value);
-        
+
         if (!isNaN(amount) && amount >= 0 && !isNaN(limit) && limit >= 0) {
             financialData.expenses = amount;
             financialData.expenseWarningLimit = limit;
-            localStorage.setItem('expensesOverridden', 'true'); 
+            localStorage.setItem('expensesOverridden', 'true');
             saveData();
             closeModal();
             switchScreen('dashboard');
@@ -816,7 +864,7 @@ function openExpensesUpdateModal() {
     });
 }
 
-window.openEditTransactionModal = function(txId) {
+window.openEditTransactionModal = function (txId) {
     if (!Array.isArray(financialData.transactions)) return;
     const tx = financialData.transactions.find(t => t.id === txId);
     if (!tx) return;
@@ -848,14 +896,14 @@ window.openEditTransactionModal = function(txId) {
 
         tx.title = updatedTitle;
         tx.amount = updatedAmount;
-        
+
         saveData();
         closeModal();
         switchScreen('transactions');
     });
 };
 
-window.deleteTransaction = function(txId) {
+window.deleteTransaction = function (txId) {
     if (!Array.isArray(financialData.transactions)) return;
     const index = financialData.transactions.findIndex(t => t.id === txId);
     if (index === -1) return;
@@ -880,7 +928,7 @@ function openSavingsUpdateModal() {
             </div>
         </div>
     `);
-    
+
     safelyBindClick('reset-savings-btn', () => {
         financialData.customSavingsOverride = null;
         saveData();
@@ -965,13 +1013,13 @@ function openUserProfileModal() {
 
         financialData.previousSeedWallet = financialData.initialSeedWallet;
 
-        financialData.user = uName; 
+        financialData.user = uName;
         financialData.userAge = !isNaN(uAge) ? uAge : "";
         financialData.bestLine = uLine;
         financialData.userStatus = uStatus;
 
         financialData.transactions = [];
-        financialData.goals = []; 
+        financialData.goals = [];
         financialData.investments = [];
         financialData.expenses = 0;
         financialData.customSavingsOverride = null;
@@ -1005,11 +1053,11 @@ function openBalanceUpdateModal() {
             financialData.previousSeedWallet = financialData.initialSeedWallet;
 
             financialData.transactions = [];
-            financialData.goals = []; 
+            financialData.goals = [];
             financialData.investments = [];
             financialData.expenses = 0;
-            financialData.initialSeedWallet = amount; 
-            
+            financialData.initialSeedWallet = amount;
+
             saveData();
             closeModal();
             switchScreen('dashboard');
@@ -1069,9 +1117,9 @@ function openDirectIncomeModal() {
 
         if (!isNaN(amount) && amount > 0) {
             if (!Array.isArray(financialData.transactions)) financialData.transactions = [];
-            
+
             const currentMobileDateObj = new Date();
-            const formattedLiveDate = currentMobileDateObj.toLocaleDateString('en-GB'); 
+            const formattedLiveDate = currentMobileDateObj.toLocaleDateString('en-GB');
             const formattedLiveTime = currentMobileDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
             financialData.transactions.push({
@@ -1136,7 +1184,7 @@ function openCreateGoalModal() {
     });
 }
 
-window.openAddFundsModal = function(goalId) {
+window.openAddFundsModal = function (goalId) {
     if (!Array.isArray(financialData.goals)) return;
     const targetGoal = financialData.goals.find(g => g.id === goalId);
     if (!targetGoal) return;
@@ -1158,7 +1206,7 @@ window.openAddFundsModal = function(goalId) {
         if (!isNaN(val) && val > 0) {
             if (financialData.balance >= val) {
                 targetGoal.saved = (Number(targetGoal.saved) || 0) + val;
-                saveData(); 
+                saveData();
                 closeModal();
                 switchScreen('goals');
             } else {
@@ -1170,22 +1218,22 @@ window.openAddFundsModal = function(goalId) {
     });
 };
 
-window.deleteGoal = function(goalId) {
+window.deleteGoal = function (goalId) {
     if (!Array.isArray(financialData.goals)) return;
     const goalIndex = financialData.goals.findIndex(g => g.id === goalId);
     if (goalIndex === -1) return;
-    
+
     const goalTitle = financialData.goals[goalIndex].title;
     if (confirm(`Kya aap "${goalTitle}" delete karna chahte hain? Saved funds auto release hojayenge.`)) {
         financialData.goals.splice(goalIndex, 1);
         saveData();
-        switchScreen('goals'); 
+        switchScreen('goals');
         showGoalConfirmationToast(`Deleted "${goalTitle}"`);
     }
 };
 
-window.openEditGoalModal = function(goalId) {
-    closeModal(); 
+window.openEditGoalModal = function (goalId) {
+    closeModal();
     if (!Array.isArray(financialData.goals)) return;
     const targetGoal = financialData.goals.find(g => g.id === goalId);
     if (!targetGoal) return;
@@ -1220,12 +1268,12 @@ window.openEditGoalModal = function(goalId) {
         targetGoal.date = updatedDate;
         saveData();
         closeModal();
-        switchScreen('goals'); 
+        switchScreen('goals');
         showGoalConfirmationToast(`Updated "${updatedName}"`);
     });
 };
 
-window.closeModal = function() {
+window.closeModal = function () {
     const m = document.getElementById('modal-layer');
     if (m) m.remove();
 };
@@ -1244,7 +1292,7 @@ function showGoalConfirmationToast(textMessage) {
     toast.style.fontWeight = '700';
     toast.style.zIndex = '999';
     toast.innerHTML = `🎯 ${sanitizeInput(textMessage)}`;
-    
+
     const appFrame = document.querySelector('.app-container');
     if (appFrame) {
         appFrame.appendChild(toast);
@@ -1257,7 +1305,7 @@ function renderChatMessages() {
     const chatBox = document.getElementById('chat-box-area');
     if (!chatBox || !Array.isArray(financialData.chatHistory)) return;
     chatBox.innerHTML = '';
-    
+
     financialData.chatHistory.forEach(msg => {
         const row = document.createElement('div');
         row.className = `chat-row-wrap ${msg.sender === 'user' ? 'align-right' : 'align-left'}`;
@@ -1285,14 +1333,14 @@ function processChatMessage() {
         const words = query.split(' ');
 
         const currentMobileDateObj = new Date();
-        const formattedLiveDate = currentMobileDateObj.toLocaleDateString('en-GB'); 
+        const formattedLiveDate = currentMobileDateObj.toLocaleDateString('en-GB');
         const formattedLiveTime = currentMobileDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         if (!isNaN(words[0]) && words[1]) {
             let amount = parseFloat(words[0]);
             let title = words.slice(1).join(' ');
             let targetCategory = "Others";
-            
+
             const lowTitle = title.toLowerCase();
             if (lowTitle.includes('burger') || lowTitle.includes('kfc') || lowTitle.includes('khana') || lowTitle.includes('dinner')) {
                 targetCategory = "Food";
@@ -1311,11 +1359,11 @@ function processChatMessage() {
                     time: formattedLiveTime,
                     date: formattedLiveDate
                 });
-                
-                saveData(); 
 
-                const budgetWarningNotice = financialData.expenses >= financialData.expenseWarningLimit 
-                    ? `<br><span style="color:var(--danger-red); font-weight:bold;">⚠️ Warning: Monthly budget limits exceeded!</span>` 
+                saveData();
+
+                const budgetWarningNotice = financialData.expenses >= financialData.expenseWarningLimit
+                    ? `<br><span style="color:var(--danger-red); font-weight:bold;">⚠️ Warning: Monthly budget limits exceeded!</span>`
                     : '';
 
                 responseText = `✔ <b>Expense Tracked</b><br>Amount: Rs. ${amount.toLocaleString()}<br>Category: ${sanitizeInput(targetCategory)}${budgetWarningNotice}`;
@@ -1357,6 +1405,6 @@ document.addEventListener("DOMContentLoaded", () => {
     safelyBindClick('nav-goals', () => switchScreen('goals'));
     safelyBindClick('nav-analytics', () => switchScreen('analytics'));
 
-    saveData(); 
+    saveData();
     switchScreen('dashboard');
 });

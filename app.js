@@ -187,8 +187,21 @@ function saveData() {
         else financialData.healthScore = 55;
 
         // FIXED LOGIC CHANGE: Total Net Asset Value calculation shows total money minus only real expenses
+        // let totalAssetInflowSum = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0) + aggregateLedgerIncome;
+        // absoluteGrandTotalWorth = totalAssetInflowSum - aggregateLedgerExpense;
+
+        // =========================================================================
+        // REAL-TIME MULTI-WALLET NET WORTH MATH CALCULATIONS LOGIC
+        // =========================================================================
+        let externalWalletsSum = 0;
+        if (Array.isArray(financialData.wallets)) {
+            externalWalletsSum = financialData.wallets.reduce((sum, w) => sum + (parseFloat(w.balance) || 0), 0);
+        }
+
         let totalAssetInflowSum = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0) + aggregateLedgerIncome;
-        absoluteGrandTotalWorth = totalAssetInflowSum - aggregateLedgerExpense;
+
+        // Multi-wallets ka balance total Net Worth me merge ho gaya
+        absoluteGrandTotalWorth = (totalAssetInflowSum - aggregateLedgerExpense) + externalWalletsSum;
 
         localStorage.setItem('myCFOData', JSON.stringify(financialData));
     } catch (error) {
@@ -214,12 +227,24 @@ function safelyBindClick(elementId, eventHandler) {
 
 // --- APP LAYER WINDOW SCREEN SWITCHER ---
 function switchScreen(screenName) {
+    // const mainContent = document.getElementById('main-content');
+    // if (!mainContent) return;
     const mainContent = document.getElementById('main-content');
     if (!mainContent) return;
+
+    // FIXED: Kisi bhi tab par click hone par Investments aur Wallets dono panels ko hide karein
+    const customInvestmentsPane = document.getElementById('investments-screen');
+    if (customInvestmentsPane) customInvestmentsPane.classList.add('d-none');
+    const customWalletsPane = document.getElementById('wallets-screen');
+    if (customWalletsPane) customWalletsPane.classList.add('d-none');
 
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     const currentNav = document.getElementById(`nav-${screenName}`);
     if (currentNav) currentNav.classList.add('active');
+
+    // document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    // const currentNav = document.getElementById(`nav-${screenName}`);
+    // if (currentNav) currentNav.classList.add('active');
 
     // Sync all calculations before rendering the screen view state
     saveData();
@@ -576,6 +601,7 @@ function switchScreen(screenName) {
         let foodSum = 0, fuelSum = 0, otherSum = 0;
         let analyticIncome = 0, analyticExpense = 0;
 
+        // Strict validation engine mapping expense category allocations loop
         if (Array.isArray(financialData.transactions)) {
             financialData.transactions.forEach(t => {
                 const amt = Number(t.amount) || 0;
@@ -588,7 +614,7 @@ function switchScreen(screenName) {
 
                     if (cat.includes('food') || title.includes('kfc') || title.includes('burger') || title.includes('khana') || title.includes('dinner')) {
                         foodSum += amt;
-                    } else if (cat.includes('fuel') || title.includes('petrol') || title.includes('bike')) {
+                    } else if (cat.includes('fuel') || title.includes('petrol') || title.includes('bike') || title.includes('car')) {
                         fuelSum += amt;
                     } else {
                         otherSum += amt;
@@ -597,8 +623,14 @@ function switchScreen(screenName) {
             });
         }
 
-        const displayIncome = analyticIncome > 0 ? analyticIncome : financialData.income;
-        const displayExpense = analyticExpense > 0 ? analyticExpense : financialData.expenses;
+        const displayIncome = analyticIncome > 0 ? analyticIncome : (Number(financialData.income) || 0);
+        const displayExpense = analyticExpense > 0 ? analyticExpense : (Number(financialData.expenses) || 0);
+
+        // Fetch multi-wallets aggregate calculation parameters
+        let walletSumValue = 0;
+        if (Array.isArray(financialData.wallets)) {
+            walletSumValue = financialData.wallets.reduce((sum, w) => sum + (parseFloat(w.balance) || 0), 0);
+        }
 
         let absoluteNetSavings = displayIncome - displayExpense;
         let calculatedTotalExpenses = foodSum + fuelSum + otherSum || 1;
@@ -607,69 +639,114 @@ function switchScreen(screenName) {
         let fuelPercent = Math.round((fuelSum / calculatedTotalExpenses) * 100);
         let otherPercent = Math.round((otherSum / calculatedTotalExpenses) * 100);
 
-        let currentDay = new Date().getDate();
-        let currentDailyBurnAvg = Math.round(displayExpense / currentDay);
+        // Dynamic formulation bar heights mappings formulas
+        let maxVal = Math.max(displayIncome, displayExpense, walletSumValue) || 1;
+        let incBarHeight = Math.round((displayIncome / maxVal) * 120) + 10;
+        let expBarHeight = Math.round((displayExpense / maxVal) * 120) + 10;
+        let walletBarHeight = Math.round((walletSumValue / maxVal) * 120) + 10;
 
-        let maxVal = Math.max(displayIncome, displayExpense) || 1;
-        let incBarHeight = Math.round((displayIncome / maxVal) * 130) + 10;
-        let expBarHeight = Math.round((displayExpense / maxVal) * 130) + 10;
+        // Dynamic formulation logic for standard accounts data allocation listings
+        let walletGraphRowsHtml = '';
+        if (Array.isArray(financialData.wallets) && financialData.wallets.length > 0) {
+            walletGraphRowsHtml = `
+                <div style="margin-top:20px; background:var(--card-bg); border:1px solid var(--border-color); padding:16px; border-radius:16px;">
+                    <div style="font-size:12px; font-weight:600; color:var(--accent-blue); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">🏦 Bank Accounts Share Progress</div>
+            `;
+            financialData.wallets.forEach(w => {
+                let sharePct = walletSumValue > 0 ? Math.round(((parseFloat(w.balance) || 0) / walletSumValue) * 100) : 0;
+                walletGraphRowsHtml += `
+                    <div style="margin-bottom: 10px;">
+                        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                            <span style="color:#fff;"><i class="fa-solid fa-building-columns" style="color:var(--primary-green); margin-right:5px;"></i> ${w.name}</span>
+                            <span style="color:var(--text-muted);">Rs. ${Number(w.balance).toLocaleString()} (${sharePct}%)</span>
+                        </div>
+                        <div style="background:#152632; height:6px; border-radius:4px; overflow:hidden;">
+                            <div style="width: ${sharePct}%; background:var(--primary-green); height:100%;"></div>
+                        </div>
+                    </div>`;
+            });
+            walletGraphRowsHtml += `</div>`;
+        }
 
         mainContent.innerHTML = `
-            <div class="analytics-header-row">
-                <h3>Live Analytics</h3>
-                <span class="time-filter-badge">This Month</span>
-            </div>
-
-            <div class="stats-grid" style="margin-bottom: 15px;">
-                <div class="stat-card" style="padding:12px;">
-                    <div class="stat-meta"><p>Net Savings</p><h4 style="color:var(--primary-green)">Rs. ${absoluteNetSavings.toLocaleString()}</h4></div>
+            <div style="padding: 20px; padding-bottom: 95px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h3 style="color:#fff; margin:0;">Live Analytics</h3>
+                    <span style="background:#152632; padding:4px 10px; border-radius:6px; font-size:11px; color:var(--text-muted);">This Month</span>
                 </div>
-                <div class="stat-card" style="padding:12px;">
-                    <div class="stat-meta"><p>Daily Burn Avg</p><h4>Rs. ${currentDailyBurnAvg.toLocaleString()}</h4></div>
-                </div>
-            </div>
-
-            <div class="chart-wrapper-card">
-                <div class="chart-title-area">Cash Flow Comparison (Rs.)</div>
-                <div class="css-bar-chart-container">
-                    <div class="chart-bar-column">
-                        <span class="bar-value-label">${Math.round(displayIncome / 1000)}k</span>
-                        <div class="actual-bar-fill fill-income-color" style="height: ${incBarHeight}px"></div>
-                        <span class="column-title-label">Income</span>
-                    </div>
-                    <div class="chart-bar-column">
-                        <span class="bar-value-label">${Math.round(displayExpense / 1000)}k</span>
-                        <div class="actual-bar-fill fill-expense-color" style="height: ${expBarHeight}px"></div>
-                        <span class="column-title-label">Expenses</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="category-breakdown-card">
-                <h4>Category Wise Share</h4>
                 
-                <div class="category-row-item">
-                    <div class="category-row-meta">
-                        <span class="cat-name-wrap"><i class="fa-solid fa-utensils" style="color:#ff9800"></i> Food & Drinks</span>
-                        <span class="cat-amount-val">Rs. ${foodSum.toLocaleString()} (${foodPercent}%)</span>
-                    </div>
-                    <div class="cat-progress-track"><div class="cat-progress-bar" style="width: ${foodPercent}%; background:#ff9800;"></div></div>
+                <div style="padding: 20px; padding-bottom: 95px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <h3 style="color:#fff; margin:0;">Live Analytics</h3>
+                        <button onclick="openBackupManagementModal()" style="background:var(--primary-green); color:#030a10; border:none; padding:6px 14px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> Backup Data
+                        </button>
                 </div>
 
-                <div class="category-row-item">
-                    <div class="category-row-meta">
-                        <span class="cat-name-wrap"><i class="fa-solid fa-gas-pump" style="color:var(--accent-blue)"></i> Fuel & Transport</span>
-                        <span class="cat-amount-val">Rs. ${fuelSum.toLocaleString()} (${fuelPercent}%)</span>
+
+                <div class="stats-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:15px;">
+                    <div class="stat-card" style="background:var(--card-bg); border:1px solid var(--border-color); padding:12px; border-radius:14px;">
+                        <p style="margin:0; font-size:11px; color:var(--text-muted);">Net Savings</p>
+                        <h4 style="margin:5px 0 0 0; color:var(--primary-green); font-size:15px;">Rs. ${absoluteNetSavings.toLocaleString()}</h4>
                     </div>
-                    <div class="cat-progress-track"><div class="cat-progress-bar" style="width: ${fuelPercent}%; background:var(--accent-blue);"></div></div>
+                    <div class="stat-card" style="background:var(--card-bg); border:1px solid var(--border-color); padding:12px; border-radius:14px;">
+                        <p style="margin:0; font-size:11px; color:var(--text-muted);">Wallets Net Worth</p>
+                        <h4 style="margin:5px 0 0 0; color:var(--accent-blue); font-size:15px;">Rs. ${walletSumValue.toLocaleString()}</h4>
+                    </div>
                 </div>
 
-                <div class="category-row-item">
-                    <div class="category-row-meta">
-                        <span class="cat-name-wrap"><i class="fa-solid fa-asterisk" style="color:#9c27b0"></i> Others / Misc</span>
-                        <span class="cat-amount-val">Rs. ${otherSum.toLocaleString()} (${otherPercent}%)</span>
+                <div class="chart-wrapper-card" style="background:var(--card-bg); border:1px solid var(--border-color); padding:20px; border-radius:16px;">
+                    <div style="font-size:13px; color:var(--text-muted); margin-bottom:15px;">Cash Flow & Wallets Balance (Rs.)</div>
+                    <div style="display:flex; justify-content:space-around; align-items:flex-end; height:160px; padding-bottom:10px; border-bottom:1px solid var(--border-color);">
+                        
+                        <div style="display:flex; flex-direction:column; align-items:center; width:60px;">
+                            <span style="font-size:10px; color:var(--text-muted);">${Math.round(displayIncome / 1000)}k</span>
+                            <div style="width:24px; height:${incBarHeight}px; background:linear-gradient(to top, #00c853, #b9f6ca); border-radius:4px 4px 0 0;"></div>
+                            <span style="font-size:11px; color:#fff; margin-top:6px;">Income</span>
+                        </div>
+
+                        <div style="display:flex; flex-direction:column; align-items:center; width:60px;">
+                            <span style="font-size:10px; color:var(--text-muted);">${Math.round(displayExpense / 1000)}k</span>
+                            <div style="width:24px; height:${expBarHeight}px; background:linear-gradient(to top, #ff1744, #ff8a80); border-radius:4px 4px 0 0;"></div>
+                            <span style="font-size:11px; color:#fff; margin-top:6px;">Expense</span>
+                        </div>
+
+                        <div style="display:flex; flex-direction:column; align-items:center; width:60px;">
+                            <span style="font-size:10px; color:var(--text-muted);">${Math.round(walletSumValue / 1000)}k</span>
+                            <div style="width:24px; height:${walletBarHeight}px; background:linear-gradient(to top, #00b0ff, #80d8ff); border-radius:4px 4px 0 0;"></div>
+                            <span style="font-size:11px; color:#fff; margin-top:6px;">Wallets</span>
+                        </div>
                     </div>
-                    <div class="cat-progress-track"><div class="cat-progress-bar" style="width: ${otherPercent}%; background:#9c27b0;"></div></div>
+                </div>
+
+                ${walletGraphRowsHtml}
+
+                <div style="margin-top:20px; background:var(--card-bg); border:1px solid var(--border-color); padding:16px; border-radius:16px;">
+                    <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Expense Breakdown Graph</div>
+                    
+                    <div style="margin-bottom:12px;">
+                        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                            <span style="color:#fff;"><i class="fa-solid fa-utensils" style="color:var(--primary-green)"></i> Food / Dining</span>
+                            <span style="color:var(--text-muted);">Rs. ${foodSum.toLocaleString()} (${foodPercent}%)</span>
+                        </div>
+                        <div style="background:#152632; height:6px; border-radius:4px; overflow:hidden;"><div style="width: ${foodPercent}%; background:var(--primary-green); height:100%;"></div></div>
+                    </div>
+
+                    <div style="margin-bottom:12px;">
+                        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                            <span style="color:#fff;"><i class="fa-solid fa-gas-pump" style="color:var(--accent-blue)"></i> Fuel &amp; Travel</span>
+                            <span style="color:var(--text-muted);">Rs. ${fuelSum.toLocaleString()} (${fuelPercent}%)</span>
+                        </div>
+                        <div style="background:#152632; height:6px; border-radius:4px; overflow:hidden;"><div style="width: ${fuelPercent}%; background:var(--accent-blue); height:100%;"></div></div>
+                    </div>
+
+                    <div>
+                        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                            <span style="color:#fff;"><i class="fa-solid fa-asterisk" style="color:#9c27b0"></i> Others / Misc</span>
+                            <span style="color:var(--text-muted);">Rs. ${otherSum.toLocaleString()} (${otherPercent}%)</span>
+                        </div>
+                        <div style="background:#152632; height:6px; border-radius:4px; overflow:hidden;"><div style="width: ${otherPercent}%; background:#9c27b0; height:100%;"></div></div>
+                    </div>
                 </div>
             </div>
         `;
@@ -1421,7 +1498,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
             document.getElementById('onboarding-screen').classList.remove('d-none');
         }
-    }, 2500);
+    }, 1500);
 
     // Onboarding Carousel controls
     document.getElementById('onboard-next-btn').addEventListener('click', () => {
@@ -1552,7 +1629,7 @@ window.saveInvestmentForm = function () {
 // =========================================================================
 
 // Controls inline screen panel form visibility state
-window.toggleInvestmentFormView = function(show, isEdit = false) {
+window.toggleInvestmentFormView = function (show, isEdit = false) {
     const formCard = document.getElementById('invest-inline-form-card');
     const triggerBtn = document.getElementById('add-invest-trigger-btn');
     if (!formCard) return;
@@ -1573,7 +1650,7 @@ window.toggleInvestmentFormView = function(show, isEdit = false) {
 };
 
 // Replaces popup mechanism to seamlessly trigger the entire screen layout
-window.openDirectInvestmentModal = function() {
+window.openDirectInvestmentModal = function () {
     // Hide active dashboard elements
     const screens = document.querySelectorAll('.screen-content, #main-content > div');
     screens.forEach(s => s.classList.add('d-none'));
@@ -1591,7 +1668,7 @@ window.openDirectInvestmentModal = function() {
 };
 
 // CORE MATHEMATICAL LOGIC: Minus from current balance, add to savings asset pool
-window.saveInvestmentForm = function() {
+window.saveInvestmentForm = function () {
     const id = document.getElementById('edit-investment-id').value;
     const title = document.getElementById('invest-title').value.trim() || 'General Asset';
     const amount = parseFloat(document.getElementById('invest-amount').value);
@@ -1630,14 +1707,14 @@ window.saveInvestmentForm = function() {
     }
 
     // Persist system calculations state parameters instantly
-    saveData(); 
+    saveData();
     toggleInvestmentFormView(false);
-    renderInvestmentHistory(); 
+    renderInvestmentHistory();
     switchScreen('dashboard'); // Redirect back to sync calculations on health cards
 };
 
 // Renders list entries on viewport dynamically
-window.renderInvestmentHistory = function() {
+window.renderInvestmentHistory = function () {
     const container = document.getElementById('investments-history-list');
     if (!container) return;
 
@@ -1671,7 +1748,7 @@ window.renderInvestmentHistory = function() {
 };
 
 // CRUD: Edit entry binder
-window.triggerInlineEdit = function(id) {
+window.triggerInlineEdit = function (id) {
     const inv = financialData.investments.find(i => i.id == id);
     if (!inv) return;
 
@@ -1683,10 +1760,551 @@ window.triggerInlineEdit = function(id) {
 };
 
 // CRUD: Delete entry execution
-window.triggerInlineDelete = function(id) {
+window.triggerInlineDelete = function (id) {
     if (confirm("Are you sure you want to delete this investment entry?")) {
         financialData.investments = (financialData.investments || []).filter(i => i.id != id);
         saveData();
         renderInvestmentHistory();
     }
+};
+
+
+// =========================================================================
+// MULTI WALLET MANAGEMENT CORE ROUTINES AND ENGINE MECHANICS
+// =========================================================================
+
+if (!Array.isArray(financialData.wallets)) {
+    financialData.wallets = [];
+}
+
+window.toggleWalletFormView = function (show, isEdit = false) {
+    const formCard = document.getElementById('wallet-inline-form-card');
+    const triggerBtn = document.getElementById('add-wallet-trigger-btn');
+    if (!formCard) return;
+
+    if (show) {
+        formCard.classList.remove('d-none');
+        if (triggerBtn) triggerBtn.style.display = 'none';
+        if (!isEdit) {
+            document.getElementById('wallet-screen-form-title').textContent = "Add New Wallet Account";
+            document.getElementById('edit-wallet-id').value = "";
+            document.getElementById('wallet-name').value = "";
+            document.getElementById('wallet-balance').value = "";
+        }
+    } else {
+        formCard.classList.add('d-none');
+        if (triggerBtn) triggerBtn.style.display = 'block';
+    }
+};
+
+window.saveWalletForm = function () {
+    const id = document.getElementById('edit-wallet-id').value;
+    const name = document.getElementById('wallet-name').value.trim() || 'Unnamed Bank';
+    const type = document.getElementById('wallet-type').value;
+    const balance = parseFloat(document.getElementById('wallet-balance').value) || 0;
+
+    if (id) {
+        const existingWallet = financialData.wallets.find(w => w.id == id);
+        if (existingWallet) {
+            existingWallet.name = name;
+            existingWallet.type = type;
+            existingWallet.balance = balance;
+        }
+    } else {
+        financialData.wallets.push({
+            id: Date.now(),
+            name: name,
+            type: type,
+            balance: balance,
+            createdAt: new Date().toLocaleDateString('en-GB')
+        });
+    }
+
+    saveData();
+    toggleWalletFormView(false);
+    renderMultiWalletsScreen();
+    if (typeof updateDashboard === 'function') updateDashboard();
+    if (typeof renderUI === 'function') renderUI();
+};
+
+window.renderMultiWalletsScreen = function () {
+    const container = document.getElementById('wallets-display-list');
+    if (!container) return;
+
+    const list = financialData.wallets || [];
+    if (list.length === 0) {
+        container.innerHTML = `<p style="text-align:center; padding:30px; color:var(--text-muted); font-size:13px;">No accounts linked yet.</p>`;
+        return;
+    }
+
+    const walletsCombinedSum = list.reduce((sum, w) => sum + (parseFloat(w.balance) || 0), 0);
+
+    let header = `
+        <div style="background: linear-gradient(135deg, #1e3c72, #2a5298); padding: 18px; border-radius: 14px; margin-bottom: 15px;">
+            <p style="margin:0; font-size:12px; color:rgba(255,255,255,0.7);">Total External Balance</p>
+            <h2 style="margin:5px 0 0 0; color:#fff; font-size:22px;">Rs. ${walletsCombinedSum.toLocaleString()}</h2>
+        </div>`;
+
+    let cards = list.map(w => `
+        <div style="padding:15px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:14px; display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <div>
+                <h4 style="margin:0; color:#fff; font-size:14px;"><i class="fa-solid fa-building-columns" style="color:var(--primary-green); margin-right:8px;"></i>${w.name}</h4>
+                <p style="margin:4px 0 0 0; font-size:11px; color:var(--text-muted);">${w.type} • Linked: ${w.createdAt}</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <span style="color: var(--primary-green); font-weight: 600; font-size: 14px;">Rs. ${Number(w.balance).toLocaleString()}</span>
+                <div style="display: flex; gap: 12px; cursor:pointer;">
+                    <i class="fa-solid fa-pen-to-square" onclick="triggerWalletEdit(${w.id})" style="color:var(--accent-blue); font-size:14px;"></i>
+                    <i class="fa-solid fa-trash" onclick="triggerWalletDelete(${w.id})" style="color:#ff5252; font-size:14px;"></i>
+                </div>
+            </div>
+        </div>`).join('');
+
+    container.innerHTML = header + cards;
+};
+
+window.triggerWalletEdit = function (id) {
+    const wallet = financialData.wallets.find(w => w.id == id);
+    if (!wallet) return;
+
+    toggleWalletFormView(true, true);
+    document.getElementById('wallet-screen-form-title').textContent = "Edit Wallet Details";
+    document.getElementById('edit-wallet-id').value = wallet.id;
+    document.getElementById('wallet-name').value = wallet.name;
+    document.getElementById('wallet-type').value = wallet.type;
+    document.getElementById('wallet-balance').value = wallet.balance;
+};
+
+window.triggerWalletDelete = function (id) {
+    if (confirm("Are you sure you want to remove this wallet?")) {
+        financialData.wallets = financialData.wallets.filter(w => w.id != id);
+        saveData();
+        renderMultiWalletsScreen();
+        if (typeof updateDashboard === 'function') updateDashboard();
+        if (typeof renderUI === 'function') renderUI();
+    }
+};
+
+// Auto Listener setup to capture clicks on bottom nav or dynamic buttons
+// Auto Interceptor Listener to handle precise route updates on Bottom Tab items
+setInterval(() => {
+    const targetTab = document.getElementById('nav-wallets');
+    if (targetTab && !targetTab.hasAttribute('data-hooked')) {
+        targetTab.setAttribute('data-hooked', 'true');
+        targetTab.addEventListener('click', () => {
+            // Target dynamic layout panels clean intercept
+            if (typeof switchScreen === 'function') {
+                switchScreen('none'); // Safe reset focus configuration
+            }
+            const screens = document.querySelectorAll('.screen-content, #main-content > div, #main-content > section');
+            screens.forEach(s => s.classList.add('d-none'));
+
+            // Strictly activate only wallets panel view
+            const walletScreenNode = document.getElementById('wallets-screen');
+            if (walletScreenNode) {
+                walletScreenNode.classList.remove('d-none');
+            }
+
+            document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
+            targetTab.classList.add('active');
+            toggleWalletFormView(false);
+            renderMultiWalletsScreen();
+        });
+    }
+}, 1000);
+
+// Fix hook to enforce that clicking any standard dashboard tab removes the wallets layout overlay
+const originalSwitchScreenMethod = window.switchScreen;
+window.switchScreen = function (screenName) {
+    if (screenName !== 'none') {
+        const walletView = document.getElementById('wallets-screen');
+        if (walletView) walletView.classList.add('d-none');
+    }
+    if (typeof originalSwitchScreenMethod === 'function') {
+        originalSwitchScreenMethod(screenName);
+    }
+};
+
+
+// FIXED: Jab user "Invest Money" par click kare toh baqi screens hide ho jayein aur sirf Investment dikhe
+window.openDirectInvestmentModal = function () {
+    // 1. Reset standard layout fields via switchScreen
+    if (typeof switchScreen === 'function') {
+        switchScreen('none');
+    }
+
+    // 2. Hide all core viewports explicitly
+    const screens = document.querySelectorAll('.screen-content, #main-content > div, #main-content > section, #wallets-screen');
+    screens.forEach(s => s.classList.add('d-none'));
+
+    // 3. Reveal ONLY the investments workspace container wrapper
+    const targetView = document.getElementById('investments-screen');
+    if (targetView) {
+        targetView.classList.remove('d-none');
+    }
+
+    // 4. Remove active focus highlighting from navigation bar nodes
+    document.querySelectorAll('.bottom-nav .nav-item').forEach(item => item.classList.remove('active'));
+
+    // 5. Fire core rendering lifecycles inside module
+    if (typeof toggleInvestmentFormView === 'function') toggleInvestmentFormView(false);
+    if (typeof renderInvestmentHistory === 'function') renderInvestmentHistory();
+};
+
+
+// ==========================================
+// 💾 DYNAMIC BANKING SLIP BACKUP ENGINE MODULE
+// ==========================================
+// ==========================================
+//// ==========================================
+// ==========================================
+// 💾 ULTIMATE MASTER THREE-BUTTON BACKUP SYSTEM (ALL MODULES + NET WORTH)
+// ==========================================
+window.openBackupManagementModal = function() {
+    // Real-time calculations for Balance and Net Worth
+    const totalBalance = financialData.balance || 0;
+    
+    let totalWallets = 0;
+    if (financialData.wallets && financialData.wallets.length > 0) {
+        totalWallets = financialData.wallets.reduce((sum, w) => sum + Number(w.balance || 0), 0);
+    } else {
+        totalWallets = totalBalance;
+    }
+    
+    const totalInvestments = (financialData.investments || []).reduce((sum, inv) => sum + Number(inv.amount || inv.value || 0), 0);
+    const totalGoalsSaved = (financialData.goals || []).reduce((sum, g) => sum + Number(g.current || 0), 0);
+    
+    // Total Net Worth Formula
+    const totalNetWorth = totalWallets + totalInvestments + totalGoalsSaved;
+    
+    createModalOverlay(`
+        <div class="cfo-modal-box" style="max-height: 85vh; overflow-y: auto; width: 95%; max-width: 500px;">
+            <h3>💾 Master Backup & Control Panel</h3>
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:15px;">
+                Apne accounts, profile, budgets, goals aur investments ka backup generate ya restore karein.
+            </p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                <div style="background: rgba(0, 176, 255, 0.08); border: 1px solid #00b0ff; padding: 10px; border-radius: 10px; text-align: center;">
+                    <span style="font-size: 10px; color: var(--text-muted); display: block; text-transform: uppercase;">Available Balance</span>
+                    <strong style="font-size: 15px; color: #00b0ff;">Rs. ${Number(totalBalance).toLocaleString()}</strong>
+                </div>
+                <div style="background: rgba(0, 230, 118, 0.08); border: 1px solid var(--primary-green); padding: 10px; border-radius: 10px; text-align: center;">
+                    <span style="font-size: 10px; color: var(--text-muted); display: block; text-transform: uppercase;">Total Net Worth</span>
+                    <strong style="font-size: 15px; color: var(--primary-green);">Rs. ${Number(totalNetWorth).toLocaleString()}</strong>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+                <button class="modal-btn" onclick="generateProfessionalPDFReceipt()" style="background: linear-gradient(135deg, #00b0ff, #007bb5); color: #fff; font-size:13px; padding:12px; border:none; border-radius:8px; font-weight:600; cursor:pointer;">
+                    <i class="fa-solid fa-file-pdf" style="margin-right:6px;"></i> 1. Download Transaction Slip (PDF)
+                </button>
+                
+                <button class="modal-btn" onclick="exportMasterJSONData()" style="background: #152632; color: #fff; font-size:13px; padding:12px; border:1px solid rgba(255,255,255,0.1); border-radius:8px; font-weight:600; cursor:pointer;">
+                    <i class="fa-solid fa-cloud-arrow-down" style="margin-right:6px;"></i> 2. Export Raw Backup (.json)
+                </button>
+
+                <button class="modal-btn" onclick="document.getElementById('import-json-file').click()" style="background: #09141c; color: var(--primary-green); font-size:13px; padding:12px; border:1px solid var(--primary-green); border-radius:8px; font-weight:600; cursor:pointer;">
+                    <i class="fa-solid fa-file-import" style="margin-right:6px;"></i> 3. Import Existing Backup (.json)
+                </button>
+            </div>
+            
+            <input type="file" id="import-json-file" accept=".json" style="display:none;" onchange="handleJSONDataImport(event)">
+            
+            <div style="font-size:10px; color:var(--text-muted); background:rgba(255,255,255,0.02); padding:10px; border-radius:8px; line-height:1.4; border:1px dashed rgba(255,255,255,0.05);">
+                📌 <b>Note:</b> Transaction Slip aapko printable statement degi jisme app ka <b>EACH AND EVERY THING</b> (Profile, Wallets, Budgets, Goals, Investments aur complete Transactions logs) save hoga.
+            </div>
+
+            <div class="modal-actions-row" style="margin-top:15px;">
+                <button class="modal-btn btn-secondary" onclick="closeModal()" style="width:100%;">Close Panel</button>
+            </div>
+        </div>
+    `);
+};
+
+// 1. RAW EXPORT ENGINE (JSON DOWNLOAD)
+window.exportMasterJSONData = function() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(financialData, null, 4));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `CFO_Ultimate_Backup_${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+};
+
+// 2. ULTIMATE BANK STATEMENT RECEIPT GENERATOR (EACH & EVERY THING MODULE)
+window.generateProfessionalPDFReceipt = function() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    
+    const liveDate = new Date().toLocaleDateString('en-GB');
+    const liveTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    
+    let y = 45;
+    const checkPageOverflow = (neededSpace) => {
+        if (y + neededSpace > 275) {
+            doc.addPage();
+            doc.setDrawColor(21, 38, 50);
+            doc.setLineWidth(0.2);
+            doc.line(15, 12, 195, 12);
+            y = 20;
+        }
+    };
+
+    // --- SLIP DESIGN HEADER ---
+    doc.setFillColor(3, 10, 16); 
+    doc.rect(0, 0, 210, 35, "F");
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("MY CFO - ULTIMATE AUDIT STATEMENT", 15, 15);
+    
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(0, 176, 255);
+    doc.text("OFFICIAL MASTER DIGITAL SLIP (ALL MODULES)", 15, 23);
+    
+    doc.setTextColor(255, 255, 255);
+    doc.text(`Date: ${liveDate} | ${liveTime}`, 145, 23);
+    
+    // --- 1. PROFILE & TOTAL VALUE SUMMARY ---
+    doc.setTextColor(3, 10, 16);
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("1. CUSTOMER ACCOUNT & MASTER ASSETS VALUE", 15, y);
+    doc.line(15, y+2, 195, y+2);
+    
+    const userName = financialData.profile && financialData.profile.name ? financialData.profile.name : "Active CFO User";
+    const userOcc = financialData.profile && financialData.profile.occupation ? financialData.profile.occupation : "Account Manager";
+    const curBalance = financialData.balance || 0;
+    
+    let totalWallets = 0;
+    if (financialData.wallets && financialData.wallets.length > 0) {
+        totalWallets = financialData.wallets.reduce((sum, w) => sum + Number(w.balance || 0), 0);
+    } else {
+        totalWallets = curBalance;
+    }
+    const totalInvestments = (financialData.investments || []).reduce((sum, inv) => sum + Number(inv.amount || inv.value || 0), 0);
+    const totalGoalsSaved = (financialData.goals || []).reduce((sum, g) => sum + Number(g.current || 0), 0);
+    const calculatedNetWorth = totalWallets + totalInvestments + totalGoalsSaved;
+
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(9.5);
+    y += 8;
+    doc.text(`User Name: ${userName}`, 15, y);
+    doc.setFont("Helvetica", "bold");
+    doc.text(`AVAILABLE BALANCE: Rs. ${Number(curBalance).toLocaleString()}`, 110, y);
+    
+    y += 6;
+    doc.setFont("Helvetica", "normal");
+    doc.text(`Occupation: ${userOcc}`, 15, y);
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(0, 150, 50); // Green color for Net Worth
+    doc.text(`TOTAL NET WORTH: Rs. ${Number(calculatedNetWorth).toLocaleString()}`, 110, y);
+    
+    doc.setTextColor(3, 10, 16);
+    doc.setFont("Helvetica", "normal");
+
+    // --- 2. WALLETS BREAKDOWN ---
+    y += 12;
+    checkPageOverflow(25);
+    doc.setFont("Helvetica", "bold");
+    doc.text("2. REGISTERED CASH WALLETS / ACCOUNTS", 15, y);
+    doc.line(15, y+2, 195, y+2);
+    
+    doc.setFontSize(9);
+    y += 7;
+    doc.text("Account / Wallet Name", 15, y);
+    doc.text("Type", 95, y);
+    doc.text("Current Balance", 155, y);
+    doc.line(15, y+2, 195, y+2);
+    
+    doc.setFont("Helvetica", "normal");
+    const walletsList = financialData.wallets || [];
+    y += 7;
+    if(walletsList.length === 0) {
+        doc.text("No separate active wallets created.", 15, y);
+        y += 5;
+    } else {
+        walletsList.forEach(w => {
+            checkPageOverflow(8);
+            doc.text(`${w.name || 'Unnamed Wallet'}`, 15, y);
+            doc.text(`${w.type || 'General'}`, 95, y);
+            doc.text(`Rs. ${Number(w.balance || 0).toLocaleString()}`, 155, y);
+            y += 6;
+        });
+    }
+
+    // --- 3. LIVE BUDGETS ---
+    y += 8;
+    checkPageOverflow(25);
+    doc.setFont("Helvetica", "bold");
+    doc.text("3. MONTHLY BUDGET CONFIGURATIONS", 15, y);
+    doc.line(15, y+2, 195, y+2);
+    
+    doc.setFontSize(9);
+    y += 7;
+    doc.text("Category Target", 15, y);
+    doc.text("Budget Limit", 95, y);
+    doc.text("Total Spent", 155, y);
+    doc.line(15, y+2, 195, y+2);
+    
+    doc.setFont("Helvetica", "normal");
+    const budgetsList = financialData.budgets || [];
+    y += 7;
+    if(budgetsList.length === 0) {
+        doc.text("No active budgets allocated.", 15, y);
+        y += 5;
+    } else {
+        budgetsList.forEach(b => {
+            checkPageOverflow(8);
+            doc.text(`${b.category || 'General'}`, 15, y);
+            doc.text(`Rs. ${Number(b.limit || 0).toLocaleString()}`, 95, y);
+            doc.text(`Rs. ${Number(b.spent || 0).toLocaleString()}`, 155, y);
+            y += 6;
+        });
+    }
+
+    // --- 4. TARGET SAVING GOALS ---
+    y += 8;
+    checkPageOverflow(25);
+    doc.setFont("Helvetica", "bold");
+    doc.text("4. SAVINGS GOALS & MILESTONES", 15, y);
+    doc.line(15, y+2, 195, y+2);
+    
+    doc.setFontSize(9);
+    y += 7;
+    doc.text("Goal Milestone Title", 15, y);
+    doc.text("Target Value", 95, y);
+    doc.text("Saved So Far", 155, y);
+    doc.line(15, y+2, 195, y+2);
+    
+    doc.setFont("Helvetica", "normal");
+    const goalsList = financialData.goals || [];
+    y += 7;
+    if(goalsList.length === 0) {
+        doc.text("No active goals created.", 15, y);
+        y += 5;
+    } else {
+        goalsList.forEach(g => {
+            checkPageOverflow(8);
+            doc.text(`${g.title || 'Saving Milestone'}`, 15, y);
+            doc.text(`Rs. ${Number(g.target || 0).toLocaleString()}`, 95, y);
+            doc.text(`Rs. ${Number(g.current || 0).toLocaleString()}`, 155, y);
+            y += 6;
+        });
+    }
+
+    // --- 5. INVESTMENTS PORTFOLIO ---
+    y += 8;
+    checkPageOverflow(25);
+    doc.setFont("Helvetica", "bold");
+    doc.text("5. CAPITAL INVESTMENTS PORTFOLIO", 15, y);
+    doc.line(15, y+2, 195, y+2);
+    
+    doc.setFontSize(9);
+    y += 7;
+    doc.text("Asset Name / Description", 15, y);
+    doc.text("Investment Type", 95, y);
+    doc.text("Valuation Amount", 155, y);
+    doc.line(15, y+2, 195, y+2);
+    
+    doc.setFont("Helvetica", "normal");
+    const investmentsList = financialData.investments || [];
+    y += 7;
+    if(investmentsList.length === 0) {
+        doc.text("No investments logged yet.", 15, y);
+        y += 5;
+    } else {
+        investmentsList.forEach(inv => {
+            checkPageOverflow(8);
+            doc.text(`${inv.name || 'Asset Fund'}`, 15, y);
+            doc.text(`${inv.type || 'Asset Class'}`, 95, y);
+            doc.text(`Rs. ${Number(inv.amount || inv.value || 0).toLocaleString()}`, 155, y);
+            y += 6;
+        });
+    }
+
+    // --- 6. SYSTEM TRANSACTION HISTORY LOGS ---
+    y += 10;
+    checkPageOverflow(35);
+    doc.setFont("Helvetica", "bold");
+    doc.text("6. COMPLETE SYSTEM TRANSACTION HISTORY", 15, y);
+    doc.line(15, y+2, 195, y+2);
+    
+    doc.setFontSize(8.5);
+    y += 7;
+    doc.text("Date/Time", 15, y);
+    doc.text("Description/Title", 52, y);
+    doc.text("Category", 112, y);
+    doc.text("Type", 150, y);
+    doc.text("Amount", 172, y);
+    doc.line(15, y+2, 195, y+2);
+    
+    doc.setFont("Helvetica", "normal");
+    const transactionsList = financialData.transactions || [];
+    y += 7;
+    if(transactionsList.length === 0) {
+        doc.text("No transactions discovered in ledger logs.", 15, y);
+    } else {
+        transactionsList.slice().reverse().forEach((tx) => {
+            checkPageOverflow(7);
+            doc.text(`${tx.date || ''} ${tx.time || ''}`, 15, y);
+            doc.text(`${tx.title ? tx.title.substring(0, 24) : 'N/A'}`, 52, y);
+            doc.text(`${tx.category || 'General'}`, 112, y);
+            doc.text(`${(tx.type || '').toUpperCase()}`, 150, y);
+            doc.text(`Rs. ${Number(tx.amount || 0).toLocaleString()}`, 172, y);
+            y += 6.5;
+        });
+    }
+    
+    // MASTER FOOTER VERIFICATION
+    checkPageOverflow(15);
+    doc.setDrawColor(21, 38, 50);
+    doc.line(15, 282, 195, 282);
+    doc.setFontSize(7.5);
+    doc.setTextColor(120, 130, 140);
+    doc.text("© Generated Securely via Ultimate Personal CFO Audit Registry System Framework.", 15, 286);
+    
+    doc.save(`CFO_Full_Master_Slip_${Date.now()}.pdf`);
+};
+
+// 3. COMPLETE IMPORT RESTORE MANAGEMENT ENGINE
+window.handleJSONDataImport = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const importedState = JSON.parse(e.target.result);
+            if (importedState.balance !== undefined) {
+                financialData = {
+                    profile: importedState.profile || {},
+                    balance: importedState.balance || 0,
+                    wallets: importedState.wallets || [],
+                    transactions: importedState.transactions || [],
+                    budgets: importedState.budgets || [],
+                    goals: importedState.goals || [],
+                    investments: importedState.investments || []
+                };
+                
+                saveData();
+                closeModal();
+                if (typeof init === 'function') {
+                    init();
+                } else {
+                    switchScreen('analytics');
+                }
+                alert("✨ Ultimate Success: Profile, Wallets, Budgets, Goals, Investments & Logs Synced Perfectly!");
+            } else {
+                alert("🚨 Error: JSON structure configuration missing nodes.");
+            }
+        } catch (err) {
+            alert("🚨 System Failure: Error decoding backup file database mapping.");
+        }
+    };
+    reader.readAsText(file);
 };

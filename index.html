@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 
 <body>
@@ -137,12 +138,72 @@
                 <i class="fa-solid fa-bullseye"></i>
                 <span>Goals</span>
             </div>
+            <div class="nav-item" id="nav-wallets">
+                <i class="fa-solid fa-wallet"></i>
+                <span>Wallets</span>
+            </div>
             <div class="nav-item" id="nav-analytics">
                 <i class="fa-solid fa-chart-simple"></i>
                 <span>Analytics</span>
             </div>
         </div>
 
+    </div>
+    <div id="wallets-screen" class="screen-content d-none" style="padding: 20px; padding-bottom: 95px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="color:#fff; margin:0;"><i class="fa-solid fa-wallet" style="color:var(--primary-green);"></i>
+                Accounts & Wallets</h3>
+            <button onclick="toggleWalletFormView(true)" id="add-wallet-trigger-btn"
+                style="background:var(--primary-green); color:#030a10; border:none; padding:8px 14px; border-radius:10px; font-weight:600; cursor:pointer; font-size: 13px;">
+                <i class="fa-solid fa-plus"></i> Add Account
+            </button>
+        </div>
+
+        <div id="wallet-inline-form-card" class="d-none"
+            style="background:var(--card-bg); border:1px solid var(--border-color); padding:20px; border-radius:16px; margin-bottom:25px;">
+            <h4 id="wallet-screen-form-title" style="color:#fff; margin-top:0; margin-bottom:15px;">Add New Wallet
+                Account</h4>
+            <form onsubmit="event.preventDefault(); saveWalletForm();">
+                <input type="hidden" id="edit-wallet-id">
+
+                <div style="margin-bottom:12px;">
+                    <label style="color:var(--text-muted); font-size:11px; display:block; margin-bottom:4px;">Account /
+                        Bank Name</label>
+                    <input type="text" id="wallet-name" placeholder="e.g., HBL, Meezan Bank, JazzCash" required
+                        style="width:100%; padding:10px; border-radius:8px; background:#152632; border:1px solid var(--border-color); color:#fff; font-size:13px;">
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <label style="color:var(--text-muted); font-size:11px; display:block; margin-bottom:4px;">Account
+                        Type</label>
+                    <select id="wallet-type" required
+                        style="width:100%; padding:10px; border-radius:8px; background:#152632; border:1px solid var(--border-color); color:#fff; font-size:13px;">
+                        <option value="Bank">Bank Account</option>
+                        <option value="Mobile Wallet">Mobile Wallet (EasyPaisa/JazzCash)</option>
+                        <option value="Cash">Physical Cash Wallet</option>
+                        <option value="Crypto">Crypto Wallet / Exchange</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom:16px;">
+                    <label style="color:var(--text-muted); font-size:11px; display:block; margin-bottom:4px;">Current
+                        Balance (Rs.)</label>
+                    <input type="number" id="wallet-balance" placeholder="Opening Balance" required
+                        style="width:100%; padding:10px; border-radius:8px; background:#152632; border:1px solid var(--border-color); color:#fff; font-size:13px;">
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:10px;">
+                    <button type="button" onclick="toggleWalletFormView(false)"
+                        style="background:#152632; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px;">Cancel</button>
+                    <button type="submit"
+                        style="background:var(--primary-green); color:#030a10; border:none; padding:6px 14px; border-radius:6px; font-weight:600; cursor:pointer; font-size:12px;">Save
+                        Account</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="wallets-display-list"
+            style="display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 25px;"></div>
     </div>
 
     <script src="app.js"></script>

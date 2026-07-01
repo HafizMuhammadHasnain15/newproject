@@ -1244,3 +1244,80 @@ body {
     0% { opacity: 0; transform: scale(0.95); }
     100% { opacity: 1; transform: scale(1); }
 }
+
+
+/* ==========================================================================
+   MOBILE FRIENDLY RESPONSIVE FIXES (ADDED FOR OVERLAP & SCREEN OPTIMIZATION)
+   ========================================================================== */
+@media screen and (max-width: 600px) {
+    /* 1. Dashboard Grid Overlap Fix (Taake cards aapas mein na takrayen) */
+    .stats-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important; /* Strictly 2 columns layout */
+        gap: 10px !important;
+        padding: 0 4px;
+    }
+
+    /* 2. Stat Cards Padding Fix */
+    .stat-card {
+        padding: 12px !important;
+        border-radius: 14px !important;
+        min-height: 85px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+    }
+
+    /* 3. Quick Actions Buttons Alignment */
+    .quick-actions-section .actions-row {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important; /* 3 equal sections */
+        gap: 8px !important;
+    }
+
+    .quick-actions-section .actions-row button {
+        padding: 10px 6px !important;
+        font-size: 11px !important; /* Choti screen par font compress ho sake */
+        width: 100% !important;
+    }
+
+    /* 4. Modals / Popups Sizing (Screen se baahir jaane se rokne ke liye) */
+    .cfo-modal-box, .modal-content, .auth-card-wrapper {
+        width: 92% !important;
+        max-width: 380px !important;
+        padding: 20px 16px !important;
+        border-radius: 16px !important;
+        margin: auto !important;
+        box-sizing: border-box !important; /* Width control inside padding */
+    }
+
+    /* 5. Inputs and Buttons inside Modals */
+    .modal-input-field, .auth-input-group input {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        padding: 10px !important;
+        font-size: 14px !important;
+    }
+
+    /* 6. Text Wrapping for Titles */
+    .dashboard-header h2.user-name {
+        font-size: 18px !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis; /* Name agar lamba ho toh cut ke dots lag jayein */
+    }
+
+    /* 7. Navigation Bar Mobile Squeezing Fix */
+    .bottom-nav {
+        height: 70px !important;
+        padding: 0 10px !important;
+    }
+
+    .nav-item i {
+        font-size: 18px !important;
+    }
+
+    .nav-item span {
+        font-size: 10px !important;
+    }
+}

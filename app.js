@@ -38,52 +38,47 @@ function sanitizeInput(rawInput) {
 
 // --- LOCAL STORAGE DATA ENGINE INITIALIZATION ---
 const DEFAULT_STATE = {
-    user: "Mughal",
-    userAge: 22,
-    userStatus: "Student",
-    bestLine: "Consistently learning, endlessly building.",
-    healthScore: 82,
-    initialSeedWallet: 25000,
-    previousSeedWallet: 25000,   // Expert Memory Track for Historical Baseline Record
-    balance: 50000,              // Explicitly derived balance matching (Seed + Income) Base Equation
-    income: 50000,
-    expenses: 32000,
-    expenseWarningLimit: 40000,
-    savingsAmount: 18000,
-    savingsRate: 36,
+    user: "",
+    userAge: "",
+    userStatus: "",
+    bestLine: "",
+    healthScore: 0,
+    initialSeedWallet: 0,
+    previousSeedWallet: 0,   // Expert Memory Track for Historical Baseline Record
+    balance: 0,              // Explicitly derived balance matching (Seed + Income) Base Equation
+    income: 0,
+    expenses: 0,
+    expenseWarningLimit: 0,
+    savingsAmount: 0,
+    savingsRate: 0,
     customSavingsOverride: null,
     activeNotification: null,
     chatHistory: [
         { sender: 'bot', text: '👋 Salam Mughal! Main aapka Personal CFO hoon. Kuch bhi kharcha ho yahan likhein (e.g., "500 petrol")', type: 'normal-msg' }
     ],
-    transactions: [
-        { id: 1, title: 'Salary Credited', amount: 50000, type: 'income', category: 'Salary', time: '11:22 AM', date: '01/06/2026' },
-        { id: 2, title: 'KFC Burger Meal', amount: 1200, type: 'expense', category: 'Food', time: '11:21 AM', date: '19/06/2026' },
-        { id: 3, title: 'Petrol Refuel', amount: 500, type: 'expense', category: 'Fuel', time: '11:20 AM', date: '19/06/2026' }
-    ],
-    goals: [
-        { id: 101, title: 'New Laptop', target: 150000, saved: 45000, date: '31 Dec 2026', icon: 'fa-laptop', isPurchased: false },
-        { id: 102, title: 'Emergency Fund', target: 60000, saved: 15000, date: '31 Aug 2026', icon: 'fa-shield-halved', isPurchased: false },
-        { id: 103, title: 'PS5 Console', target: 70000, saved: 70000, date: '31 Jan 2027', icon: 'fa-gamepad', isPurchased: false }
-    ],
+    transactions: [],
+    goals: [],
     investments: [] // Finance Manager Investment Ledger
 };
 
 let financialData = (() => {
+
+    
     try {
         const stored = localStorage.getItem('myCFOData');
+
         if (!stored) return DEFAULT_STATE;
         let parsed = JSON.parse(stored);
 
         // Self-healing check mechanisms for state transitions
         if (parsed.initialSeedWallet === undefined) {
-            parsed.initialSeedWallet = parsed.balance !== undefined ? parsed.balance : 25000;
+            parsed.initialSeedWallet = parsed.balance !== undefined ? parsed.balance : "";
         }
         if (parsed.previousSeedWallet === undefined) {
             parsed.previousSeedWallet = parsed.initialSeedWallet;
         }
         if (parsed.expenseWarningLimit === undefined) {
-            parsed.expenseWarningLimit = 40000;
+            parsed.expenseWarningLimit = "";
         }
         if (parsed.activeNotification === undefined) {
             parsed.activeNotification = null;
@@ -1199,17 +1194,30 @@ function openDirectIncomeModal() {
             const formattedLiveDate = currentMobileDateObj.toLocaleDateString('en-GB');
             const formattedLiveTime = currentMobileDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+            // 1. Paise SIRF Monthly Income me add honge
+            financialData.income = (Number(financialData.income) || 0) + amount;
+
+            // 2. Transaction me 'income' ki jagah type 'monthly_pool' rakhi hay taake baki balance functions isay direct current balance me add na karein
             financialData.transactions.push({
                 id: Date.now(),
                 title: source,
                 amount: amount,
-                type: 'income',
+                type: 'monthly_pool',
                 category: 'Salary',
                 time: formattedLiveTime,
                 date: formattedLiveDate
             });
+
             saveData();
             closeModal();
+
+            // Agar aapke pas updateDashboard() ka function hay toh usay call karein, warna switchScreen kaam karega
+            if (typeof updateDashboard === 'function') {
+                updateDashboard();
+            } else if (typeof renderDashboard === 'function') {
+                renderDashboard();
+            }
+
             switchScreen('dashboard');
         } else {
             alert("Please pass a positive numerical addition entry.");
@@ -1527,28 +1535,49 @@ document.addEventListener("DOMContentLoaded", () => {
         const enteredUser = document.getElementById('auth-username').value.trim();
         const pin = document.getElementById('auth-passcode').value.trim();
 
-        // Passcode validation setup (Username can be anything now!)
-        if (enteredUser !== "" && pin === '1234') {
+        if (enteredUser === "" || pin === "") {
+            alert("🚨 Please enter both Username and Passcode Pin.");
+            return;
+        }
 
-            // 1. Dynamic User Name Assignment inside financialData state
+        // CHECK KAREIN KYA USER KA PIN PEHLE SE SAVE HAY?
+        // Agar save nahi hay (First time login), toh jo pin dala hay usay hi password bana dein
+        if (!financialData.userPasscode || financialData.userPasscode === "") {
+            financialData.userPasscode = pin;
+
+            // REQ: First time open ho tu data zero ho (Dummy data reset)
+            financialData.balance = 0;
+            financialData.income = 0;
+            financialData.expenses = 0;
+            financialData.transactions = []; // Khali array
+            financialData.goals = [];        // Khali array
+            financialData.investments = [];  // Khali array
+            financialData.wallets = [];      // Khali array
+
+            alert("🔒 Your custom Passcode Pin has been set successfully!");
+        }
+
+        // AB VERIFY KAREIN KYA ENTERED PIN MATCH KARTA HAY SAVE HUE PIN SE?
+        if (pin === financialData.userPasscode) {
+
             if (typeof financialData === 'undefined') {
                 window.financialData = {};
             }
             financialData.userName = enteredUser;
 
-            // 2. Avatar character extract karne ke liye (First Letter)
+            // Avatar character extract karne ke liye
             financialData.userAvatarChar = enteredUser.charAt(0).toUpperCase();
 
-            // 3. Hide Auth overlay window
+            // Hide Auth overlay window
             document.getElementById('auth-screen').classList.add('d-none');
 
-            // 4. Save to storage & fully refresh UI elements dynamically
+            // Save to storage & fully refresh UI elements dynamically
             saveData();
 
             if (typeof updateDashboard === 'function') updateDashboard();
             if (typeof renderUI === 'function') renderUI();
 
-            // Force refresh name fields if template literals are injected manually
+            // Force refresh name fields
             const nameLabel = document.querySelector('.user-name');
             if (nameLabel) nameLabel.textContent = enteredUser;
 
@@ -1556,7 +1585,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (avatarBox) avatarBox.textContent = financialData.userAvatarChar;
 
         } else {
-            alert("🚨 Access Denied: Please enter a Username and correct Passcode Pin (1234).");
+            alert("🚨 Access Denied: Incorrect custom Passcode Pin.");
         }
     };
 });
@@ -1960,23 +1989,23 @@ window.openDirectInvestmentModal = function () {
 // ==========================================
 // 💾 ULTIMATE MASTER THREE-BUTTON BACKUP SYSTEM (ALL MODULES + NET WORTH)
 // ==========================================
-window.openBackupManagementModal = function() {
+window.openBackupManagementModal = function () {
     // Real-time calculations for Balance and Net Worth
     const totalBalance = financialData.balance || 0;
-    
+
     let totalWallets = 0;
     if (financialData.wallets && financialData.wallets.length > 0) {
         totalWallets = financialData.wallets.reduce((sum, w) => sum + Number(w.balance || 0), 0);
     } else {
         totalWallets = totalBalance;
     }
-    
+
     const totalInvestments = (financialData.investments || []).reduce((sum, inv) => sum + Number(inv.amount || inv.value || 0), 0);
     const totalGoalsSaved = (financialData.goals || []).reduce((sum, g) => sum + Number(g.current || 0), 0);
-    
+
     // Total Net Worth Formula
     const totalNetWorth = totalWallets + totalInvestments + totalGoalsSaved;
-    
+
     createModalOverlay(`
         <div class="cfo-modal-box" style="max-height: 85vh; overflow-y: auto; width: 95%; max-width: 500px;">
             <h3>💾 Master Backup & Control Panel</h3>
@@ -2023,7 +2052,7 @@ window.openBackupManagementModal = function() {
 };
 
 // 1. RAW EXPORT ENGINE (JSON DOWNLOAD)
-window.exportMasterJSONData = function() {
+window.exportMasterJSONData = function () {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(financialData, null, 4));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
@@ -2034,13 +2063,13 @@ window.exportMasterJSONData = function() {
 };
 
 // 2. ULTIMATE BANK STATEMENT RECEIPT GENERATOR (EACH & EVERY THING MODULE)
-window.generateProfessionalPDFReceipt = function() {
+window.generateProfessionalPDFReceipt = function () {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    
+
     const liveDate = new Date().toLocaleDateString('en-GB');
     const liveTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    
+
     let y = 45;
     const checkPageOverflow = (neededSpace) => {
         if (y + neededSpace > 275) {
@@ -2053,33 +2082,33 @@ window.generateProfessionalPDFReceipt = function() {
     };
 
     // --- SLIP DESIGN HEADER ---
-    doc.setFillColor(3, 10, 16); 
+    doc.setFillColor(3, 10, 16);
     doc.rect(0, 0, 210, 35, "F");
-    
+
     doc.setTextColor(255, 255, 255);
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(20);
     doc.text("MY CFO - ULTIMATE AUDIT STATEMENT", 15, 15);
-    
+
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(0, 176, 255);
     doc.text("OFFICIAL MASTER DIGITAL SLIP (ALL MODULES)", 15, 23);
-    
+
     doc.setTextColor(255, 255, 255);
     doc.text(`Date: ${liveDate} | ${liveTime}`, 145, 23);
-    
+
     // --- 1. PROFILE & TOTAL VALUE SUMMARY ---
     doc.setTextColor(3, 10, 16);
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(11);
     doc.text("1. CUSTOMER ACCOUNT & MASTER ASSETS VALUE", 15, y);
-    doc.line(15, y+2, 195, y+2);
-    
+    doc.line(15, y + 2, 195, y + 2);
+
     const userName = financialData.profile && financialData.profile.name ? financialData.profile.name : "Active CFO User";
     const userOcc = financialData.profile && financialData.profile.occupation ? financialData.profile.occupation : "Account Manager";
     const curBalance = financialData.balance || 0;
-    
+
     let totalWallets = 0;
     if (financialData.wallets && financialData.wallets.length > 0) {
         totalWallets = financialData.wallets.reduce((sum, w) => sum + Number(w.balance || 0), 0);
@@ -2096,14 +2125,14 @@ window.generateProfessionalPDFReceipt = function() {
     doc.text(`User Name: ${userName}`, 15, y);
     doc.setFont("Helvetica", "bold");
     doc.text(`AVAILABLE BALANCE: Rs. ${Number(curBalance).toLocaleString()}`, 110, y);
-    
+
     y += 6;
     doc.setFont("Helvetica", "normal");
     doc.text(`Occupation: ${userOcc}`, 15, y);
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(0, 150, 50); // Green color for Net Worth
     doc.text(`TOTAL NET WORTH: Rs. ${Number(calculatedNetWorth).toLocaleString()}`, 110, y);
-    
+
     doc.setTextColor(3, 10, 16);
     doc.setFont("Helvetica", "normal");
 
@@ -2112,19 +2141,19 @@ window.generateProfessionalPDFReceipt = function() {
     checkPageOverflow(25);
     doc.setFont("Helvetica", "bold");
     doc.text("2. REGISTERED CASH WALLETS / ACCOUNTS", 15, y);
-    doc.line(15, y+2, 195, y+2);
-    
+    doc.line(15, y + 2, 195, y + 2);
+
     doc.setFontSize(9);
     y += 7;
     doc.text("Account / Wallet Name", 15, y);
     doc.text("Type", 95, y);
     doc.text("Current Balance", 155, y);
-    doc.line(15, y+2, 195, y+2);
-    
+    doc.line(15, y + 2, 195, y + 2);
+
     doc.setFont("Helvetica", "normal");
     const walletsList = financialData.wallets || [];
     y += 7;
-    if(walletsList.length === 0) {
+    if (walletsList.length === 0) {
         doc.text("No separate active wallets created.", 15, y);
         y += 5;
     } else {
@@ -2142,19 +2171,19 @@ window.generateProfessionalPDFReceipt = function() {
     checkPageOverflow(25);
     doc.setFont("Helvetica", "bold");
     doc.text("3. MONTHLY BUDGET CONFIGURATIONS", 15, y);
-    doc.line(15, y+2, 195, y+2);
-    
+    doc.line(15, y + 2, 195, y + 2);
+
     doc.setFontSize(9);
     y += 7;
     doc.text("Category Target", 15, y);
     doc.text("Budget Limit", 95, y);
     doc.text("Total Spent", 155, y);
-    doc.line(15, y+2, 195, y+2);
-    
+    doc.line(15, y + 2, 195, y + 2);
+
     doc.setFont("Helvetica", "normal");
     const budgetsList = financialData.budgets || [];
     y += 7;
-    if(budgetsList.length === 0) {
+    if (budgetsList.length === 0) {
         doc.text("No active budgets allocated.", 15, y);
         y += 5;
     } else {
@@ -2172,19 +2201,19 @@ window.generateProfessionalPDFReceipt = function() {
     checkPageOverflow(25);
     doc.setFont("Helvetica", "bold");
     doc.text("4. SAVINGS GOALS & MILESTONES", 15, y);
-    doc.line(15, y+2, 195, y+2);
-    
+    doc.line(15, y + 2, 195, y + 2);
+
     doc.setFontSize(9);
     y += 7;
     doc.text("Goal Milestone Title", 15, y);
     doc.text("Target Value", 95, y);
     doc.text("Saved So Far", 155, y);
-    doc.line(15, y+2, 195, y+2);
-    
+    doc.line(15, y + 2, 195, y + 2);
+
     doc.setFont("Helvetica", "normal");
     const goalsList = financialData.goals || [];
     y += 7;
-    if(goalsList.length === 0) {
+    if (goalsList.length === 0) {
         doc.text("No active goals created.", 15, y);
         y += 5;
     } else {
@@ -2202,19 +2231,19 @@ window.generateProfessionalPDFReceipt = function() {
     checkPageOverflow(25);
     doc.setFont("Helvetica", "bold");
     doc.text("5. CAPITAL INVESTMENTS PORTFOLIO", 15, y);
-    doc.line(15, y+2, 195, y+2);
-    
+    doc.line(15, y + 2, 195, y + 2);
+
     doc.setFontSize(9);
     y += 7;
     doc.text("Asset Name / Description", 15, y);
     doc.text("Investment Type", 95, y);
     doc.text("Valuation Amount", 155, y);
-    doc.line(15, y+2, 195, y+2);
-    
+    doc.line(15, y + 2, 195, y + 2);
+
     doc.setFont("Helvetica", "normal");
     const investmentsList = financialData.investments || [];
     y += 7;
-    if(investmentsList.length === 0) {
+    if (investmentsList.length === 0) {
         doc.text("No investments logged yet.", 15, y);
         y += 5;
     } else {
@@ -2232,8 +2261,8 @@ window.generateProfessionalPDFReceipt = function() {
     checkPageOverflow(35);
     doc.setFont("Helvetica", "bold");
     doc.text("6. COMPLETE SYSTEM TRANSACTION HISTORY", 15, y);
-    doc.line(15, y+2, 195, y+2);
-    
+    doc.line(15, y + 2, 195, y + 2);
+
     doc.setFontSize(8.5);
     y += 7;
     doc.text("Date/Time", 15, y);
@@ -2241,12 +2270,12 @@ window.generateProfessionalPDFReceipt = function() {
     doc.text("Category", 112, y);
     doc.text("Type", 150, y);
     doc.text("Amount", 172, y);
-    doc.line(15, y+2, 195, y+2);
-    
+    doc.line(15, y + 2, 195, y + 2);
+
     doc.setFont("Helvetica", "normal");
     const transactionsList = financialData.transactions || [];
     y += 7;
-    if(transactionsList.length === 0) {
+    if (transactionsList.length === 0) {
         doc.text("No transactions discovered in ledger logs.", 15, y);
     } else {
         transactionsList.slice().reverse().forEach((tx) => {
@@ -2259,7 +2288,7 @@ window.generateProfessionalPDFReceipt = function() {
             y += 6.5;
         });
     }
-    
+
     // MASTER FOOTER VERIFICATION
     checkPageOverflow(15);
     doc.setDrawColor(21, 38, 50);
@@ -2267,17 +2296,17 @@ window.generateProfessionalPDFReceipt = function() {
     doc.setFontSize(7.5);
     doc.setTextColor(120, 130, 140);
     doc.text("© Generated Securely via Ultimate Personal CFO Audit Registry System Framework.", 15, 286);
-    
+
     doc.save(`CFO_Full_Master_Slip_${Date.now()}.pdf`);
 };
 
 // 3. COMPLETE IMPORT RESTORE MANAGEMENT ENGINE
-window.handleJSONDataImport = function(event) {
+window.handleJSONDataImport = function (event) {
     const file = event.target.files[0];
     if (!file) return;
-    
+
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         try {
             const importedState = JSON.parse(e.target.result);
             if (importedState.balance !== undefined) {
@@ -2290,7 +2319,7 @@ window.handleJSONDataImport = function(event) {
                     goals: importedState.goals || [],
                     investments: importedState.investments || []
                 };
-                
+
                 saveData();
                 closeModal();
                 if (typeof init === 'function') {
@@ -2308,3 +2337,7 @@ window.handleJSONDataImport = function(event) {
     };
     reader.readAsText(file);
 };
+
+
+
+

@@ -1247,77 +1247,159 @@ body {
 
 
 /* ==========================================================================
-   MOBILE FRIENDLY RESPONSIVE FIXES (ADDED FOR OVERLAP & SCREEN OPTIMIZATION)
+   UNIVERSAL DEVICE BREAKPOINT ENGINE & RESPONSIVE ADAPTATION
    ========================================================================== */
-@media screen and (max-width: 600px) {
-    /* 1. Dashboard Grid Overlap Fix (Taake cards aapas mein na takrayen) */
-    .stats-grid {
-        display: grid !important;
-        grid-template-columns: repeat(2, 1fr) !important; /* Strictly 2 columns layout */
-        gap: 10px !important;
-        padding: 0 4px;
+
+/* --- 1. DESKTOP & LAPTOP STRETCHING OPTIMIZATIONS --- */
+#main-content {
+    width: 100%;
+    max-width: 1200px; /* Prevents layouts from stretching infinitely on wide laptop/desktop monitors */
+    margin: 0 auto;
+}
+
+/* Turns the fixed desktop health card into a responsive flex wrapper */
+.health-card {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap; /* Allows internal blocks to wrap safely if room runs out */
+    gap: 24px;
+}
+
+.health-info {
+    flex: 1;
+    min-width: 200px;
+}
+
+/* --- 2. TABLET VIEWPWORT BREAKPOINT (Max-width: 991px) --- */
+@media screen and (max-width: 991px) {
+    .health-card {
+        flex-direction: column; /* Stacks status ring and textual metrics vertically */
+        align-items: stretch;
+        gap: 20px;
     }
 
-    /* 2. Stat Cards Padding Fix */
+    .health-chart-circle {
+        margin: 0 auto; /* Horizonally centers tracking circle */
+    }
+
+    .financial-metrics-sheet-container {
+        max-width: 100%; /* Spans full container width dynamically */
+        width: 100%;
+    }
+}
+
+/* --- 3. STANDARD MOBILE BREAKPOINT (Max-width: 600px) --- */
+@media screen and (max-width: 600px) {
+    #main-content {
+        padding: 16px 14px;
+        padding-bottom: 95px; /* Preserves clear spacing from fixed navigation link row */
+    }
+
+    /* Compress Header spacing */
+    .dashboard-header {
+        gap: 12px;
+    }
+
+    .user-name {
+        font-size: 18px !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis; /* Appends dots cleanly to lengthy user strings */
+    }
+
+    /* Core Status Layout adaptation */
+    .stats-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important; /* Forces solid dual column grid array */
+        gap: 10px !important;
+    }
+
     .stat-card {
         padding: 12px !important;
         border-radius: 14px !important;
-        min-height: 85px !important;
+        min-height: 80px !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: space-between !important;
     }
 
-    /* 3. Quick Actions Buttons Alignment */
+    /* Dynamic Financial Metrics Sheet collapsing */
+    .metrics-grid-layout {
+        grid-template-columns: 1fr !important; /* Dissolves horizontal pairs into a single vertical stream */
+        gap: 12px 0;
+    }
+
+    .full-width-metric-row {
+        grid-column: span 1 !important; /* Fits unified row footprint safely inside parent frame bounds */
+    }
+
+    /* Quick Action control cluster wrapping */
     .quick-actions-section .actions-row {
         display: grid !important;
-        grid-template-columns: repeat(3, 1fr) !important; /* 3 equal sections */
+        grid-template-columns: repeat(4, 1fr) !important; /* Evenly distributes all 4 action buttons across 1 single row */
         gap: 8px !important;
     }
 
-    .quick-actions-section .actions-row button {
-        padding: 10px 6px !important;
-        font-size: 11px !important; /* Choti screen par font compress ho sake */
-        width: 100% !important;
+    .action-btn-wrapper {
+        width: 100%;
     }
 
-    /* 4. Modals / Popups Sizing (Screen se baahir jaane se rokne ke liye) */
-    .cfo-modal-box, .modal-content, .auth-card-wrapper {
-        width: 92% !important;
-        max-width: 380px !important;
-        padding: 20px 16px !important;
-        border-radius: 16px !important;
-        margin: auto !important;
-        box-sizing: border-box !important; /* Width control inside padding */
+    .action-btn {
+        width: 100% !important; /* Allows flexible proportional squaring based on grid cell layout */
+        aspect-ratio: 1 / 1;
+        max-width: 54px;
+        margin: 0 auto;
+        border-radius: 12px !important;
     }
 
-    /* 5. Inputs and Buttons inside Modals */
-    .modal-input-field, .auth-input-group input {
-        width: 100% !important;
-        box-sizing: border-box !important;
-        padding: 10px !important;
-        font-size: 14px !important;
-    }
-
-    /* 6. Text Wrapping for Titles */
-    .dashboard-header h2.user-name {
-        font-size: 18px !important;
+    .action-btn-wrapper span {
+        font-size: 9px !important;
+        text-align: center;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis; /* Name agar lamba ho toh cut ke dots lag jayein */
     }
 
-    /* 7. Navigation Bar Mobile Squeezing Fix */
+    /* Interactive Interface Overlays */
+    .cfo-modal-box, .auth-card-wrapper, .onboarding-carousel-box {
+        width: 94% !important;
+        max-width: 390px !important;
+        padding: 20px 16px !important;
+        border-radius: 20px !important;
+        margin: auto !important;
+    }
+
+    /* System Navigation control matrix optimization */
     .bottom-nav {
         height: 70px !important;
-        padding: 0 10px !important;
+    }
+
+    .nav-item {
+        font-size: 10px !important;
+        padding: 4px 6px !important;
     }
 
     .nav-item i {
-        font-size: 18px !important;
+        font-size: 16px !important;
     }
 
-    .nav-item span {
+    /* Real-Time Analytics Bar scaling adjustments */
+    .chart-bar-column {
+        width: 42px;
+    }
+
+    .bar-value-label {
         font-size: 10px !important;
+    }
+}
+
+/* --- 4. MICRO-SCREEN ACCESSIBILITY MATRIX (Max-width: 365px) --- */
+@media screen and (max-width: 365px) {
+    .stats-grid {
+        grid-template-columns: 1fr !important; /* Stacks overview metrics into one column on small viewports */
+    }
+
+    .quick-actions-section .actions-row {
+        grid-template-columns: repeat(2, 1fr) !important; /* Realigns control grid into a compact 2x2 design layout */
     }
 }

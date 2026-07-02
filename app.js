@@ -149,20 +149,23 @@ function saveData() {
             });
         }
 
+
         // Core base savings logic
         let baseSavings = financialData.income - financialData.expenses;
 
         if (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined) {
-            financialData.savingsAmount = financialData.customSavingsOverride + totalGoalFundsAllocated;
+            financialData.savingsAmount = financialData.customSavingsOverride; // FIX: Prevent total savings allocation double-counting
         } else {
-            financialData.savingsAmount = baseSavings + totalGoalFundsAllocated;
+            financialData.savingsAmount = baseSavings; // FIX: Prevent total savings allocation double-counting
         }
 
         if (financialData.savingsAmount < 0) financialData.savingsAmount = 0;
 
         // Investment safely deducted from Current Balance
         let baselineCapitalPool = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0);
-        let deductionsPool = aggregateLedgerExpense + totalAllGoalsIncludingPurchased + totalInvestmentsAccumulated;
+        
+        // FIX: Active balance pool should subtract active allocations, allowing purchased ones to become standard ledger outflows
+        let deductionsPool = aggregateLedgerExpense + totalGoalFundsAllocated + totalInvestmentsAccumulated;
 
         if (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined) {
             deductionsPool += financialData.customSavingsOverride;
@@ -181,10 +184,6 @@ function saveData() {
         else if (financialData.savingsRate > 20) financialData.healthScore = 79;
         else financialData.healthScore = 55;
 
-        // FIXED LOGIC CHANGE: Total Net Asset Value calculation shows total money minus only real expenses
-        // let totalAssetInflowSum = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0) + aggregateLedgerIncome;
-        // absoluteGrandTotalWorth = totalAssetInflowSum - aggregateLedgerExpense;
-
         // =========================================================================
         // REAL-TIME MULTI-WALLET NET WORTH MATH CALCULATIONS LOGIC
         // =========================================================================
@@ -195,10 +194,68 @@ function saveData() {
 
         let totalAssetInflowSum = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0) + aggregateLedgerIncome;
 
-        // Multi-wallets ka balance total Net Worth me merge ho gaya
-        absoluteGrandTotalWorth = (totalAssetInflowSum - aggregateLedgerExpense) + externalWalletsSum;
+        // FIX: Clear double-counting by directly adding up your current liquid balance and allocated asset pools
+        absoluteGrandTotalWorth = financialData.balance + totalGoalFundsAllocated + totalInvestmentsAccumulated + externalWalletsSum;
 
         localStorage.setItem('myCFOData', JSON.stringify(financialData));
+        
+        // // FIX: Re-merge tracked investments asset holdings directly into user overall net asset calculation pool
+        // absoluteGrandTotalWorth = (totalAssetInflowSum - aggregateLedgerExpense) + externalWalletsSum + totalInvestmentsAccumulated;
+
+        // localStorage.setItem('myCFOData', JSON.stringify(financialData));
+
+
+
+        // // Core base savings logic
+        // let baseSavings = financialData.income - financialData.expenses;
+
+        // if (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined) {
+        //     financialData.savingsAmount = financialData.customSavingsOverride + totalGoalFundsAllocated;
+        // } else {
+        //     financialData.savingsAmount = baseSavings + totalGoalFundsAllocated;
+        // }
+
+        // if (financialData.savingsAmount < 0) financialData.savingsAmount = 0;
+
+        // // Investment safely deducted from Current Balance
+        // let baselineCapitalPool = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0);
+        // let deductionsPool = aggregateLedgerExpense + totalAllGoalsIncludingPurchased + totalInvestmentsAccumulated;
+
+        // if (financialData.customSavingsOverride !== null && financialData.customSavingsOverride !== undefined) {
+        //     deductionsPool += financialData.customSavingsOverride;
+        // }
+
+        // financialData.balance = baselineCapitalPool + aggregateLedgerIncome - deductionsPool;
+
+        // if (financialData.income > 0) {
+        //     financialData.savingsRate = Math.round((financialData.savingsAmount / financialData.income) * 100);
+        // } else {
+        //     financialData.savingsRate = 0;
+        // }
+
+        // // Dynamic formulation logic for standard health scores
+        // if (financialData.savingsRate > 40) financialData.healthScore = 88;
+        // else if (financialData.savingsRate > 20) financialData.healthScore = 79;
+        // else financialData.healthScore = 55;
+
+        // // FIXED LOGIC CHANGE: Total Net Asset Value calculation shows total money minus only real expenses
+        // // let totalAssetInflowSum = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0) + aggregateLedgerIncome;
+        // // absoluteGrandTotalWorth = totalAssetInflowSum - aggregateLedgerExpense;
+
+        // // =========================================================================
+        // // REAL-TIME MULTI-WALLET NET WORTH MATH CALCULATIONS LOGIC
+        // // =========================================================================
+        // let externalWalletsSum = 0;
+        // if (Array.isArray(financialData.wallets)) {
+        //     externalWalletsSum = financialData.wallets.reduce((sum, w) => sum + (parseFloat(w.balance) || 0), 0);
+        // }
+
+        // let totalAssetInflowSum = (Number(financialData.initialSeedWallet) || 0) + (Number(financialData.income) || 0) + aggregateLedgerIncome;
+
+        // // Multi-wallets ka balance total Net Worth me merge ho gaya
+        // absoluteGrandTotalWorth = (totalAssetInflowSum - aggregateLedgerExpense) + externalWalletsSum;
+
+        // localStorage.setItem('myCFOData', JSON.stringify(financialData));
     } catch (error) {
         console.error("State Synchronization Writing Interrupted", error);
     }
@@ -431,10 +488,21 @@ function switchScreen(screenName) {
         safelyBindClick('change-expenses-trigger', openExpensesUpdateModal);
         safelyBindClick('change-savings-trigger', openSavingsUpdateModal);
 
+        // FIX: Toggle open state and perform precise inline layout update to avoid a full-screen destructive render loop
         safelyBindClick('dashboard-bell-icon', () => {
             isNotificationDropdownOpen = !isNotificationDropdownOpen;
-            switchScreen('dashboard');
+            const dropdownNode = document.getElementById('cfo-notification-dropdown-box');
+            if (dropdownNode) {
+                dropdownNode.style.display = isNotificationDropdownOpen ? 'block' : 'none';
+            } else {
+                switchScreen('dashboard');
+            }
         });
+
+        // safelyBindClick('dashboard-bell-icon', () => {
+        //     isNotificationDropdownOpen = !isNotificationDropdownOpen;
+        //     switchScreen('dashboard');
+        // });
     }
 
     // 2. CFO BOT CHAT SCREEN VIEW STATE
@@ -1233,8 +1301,9 @@ function openCreateGoalModal() {
             <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Apna naya bachat target yahan save karein:</p>
             <input type="text" id="goal-title-input" class="modal-input-field" placeholder="Goal Name (e.g. University Fees, Laptop)">
             <input type="number" id="goal-target-input" class="modal-input-field" placeholder="Target Amount (Rs.)">
-            <input type="text" id="goal-date-input" class="modal-input-field" placeholder="Target Date (e.g. 30 Dec 2026)">
-            <div class="modal-actions-row">
+            <label style="font-size:11px; color:var(--text-muted); display:block; margin-top:8px; margin-bottom:4px; text-align:left;">Target Date:</label>
+            <input type="date" id="goal-date-input" class="modal-input-field" style="color-scheme: dark; color: #fff;">
+            <div class="modal-actions-row" style="margin-top:15px;">
                 <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
                 <button class="modal-btn btn-primary" id="confirm-create-goal">Create Goal</button>
             </div>
@@ -1244,7 +1313,16 @@ function openCreateGoalModal() {
     safelyBindClick('confirm-create-goal', () => {
         let name = document.getElementById('goal-title-input').value.trim();
         let target = parseFloat(document.getElementById('goal-target-input').value);
-        let dateStr = document.getElementById('goal-date-input').value.trim() || 'No Limit';
+        let rawDate = document.getElementById('goal-date-input').value.trim();
+        let dateStr = 'No Limit';
+
+        // Secure formatting: Change system format YYYY-MM-DD to a clean DD/MM/YYYY format string
+        if (rawDate) {
+            const parts = rawDate.split('-');
+            if (parts.length === 3) {
+                dateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+        }
 
         if (!name || isNaN(target) || target <= 0) {
             alert("Valid Details Enter karein.");
@@ -1268,6 +1346,50 @@ function openCreateGoalModal() {
         showGoalConfirmationToast(`Goal "${name}" Created!`);
     });
 }
+
+// function openCreateGoalModal() {
+//     closeModal();
+//     createModalOverlay(`
+//         <div class="cfo-modal-box">
+//             <h3>✨ Create New Financial Goal</h3>
+//             <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Apna naya bachat target yahan save karein:</p>
+//             <input type="text" id="goal-title-input" class="modal-input-field" placeholder="Goal Name (e.g. University Fees, Laptop)">
+//             <input type="number" id="goal-target-input" class="modal-input-field" placeholder="Target Amount (Rs.)">
+//             <input type="text" id="goal-date-input" class="modal-input-field" placeholder="Target Date (e.g. 30 Dec 2026)">
+//             <div class="modal-actions-row">
+//                 <button class="modal-btn btn-secondary" onclick="closeModal()">Cancel</button>
+//                 <button class="modal-btn btn-primary" id="confirm-create-goal">Create Goal</button>
+//             </div>
+//         </div>
+//     `);
+
+//     safelyBindClick('confirm-create-goal', () => {
+//         let name = document.getElementById('goal-title-input').value.trim();
+//         let target = parseFloat(document.getElementById('goal-target-input').value);
+//         let dateStr = document.getElementById('goal-date-input').value.trim() || 'No Limit';
+
+//         if (!name || isNaN(target) || target <= 0) {
+//             alert("Valid Details Enter karein.");
+//             return;
+//         }
+
+//         if (!Array.isArray(financialData.goals)) financialData.goals = [];
+//         financialData.goals.push({
+//             id: Date.now(),
+//             title: name,
+//             target: target,
+//             saved: 0,
+//             date: dateStr,
+//             icon: 'fa-star',
+//             isPurchased: false
+//         });
+
+//         saveData();
+//         closeModal();
+//         switchScreen('goals');
+//         showGoalConfirmationToast(`Goal "${name}" Created!`);
+//     });
+// }
 
 window.openAddFundsModal = function (goalId) {
     if (!Array.isArray(financialData.goals)) return;
